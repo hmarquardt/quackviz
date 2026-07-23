@@ -1,4 +1,5 @@
 import { APP_VERSION, BUILD_DATE, DEFAULT_AI_SETTINGS, WORKSPACE_SCHEMA_VERSION } from "./constants.js";
+import { normalizeDashboard } from "./dashboard.js";
 import { deepClone, nowIso, uid } from "./utils.js";
 
 export function createWorkspace(overrides = {}) {
@@ -47,11 +48,11 @@ export function hydrateWorkspace(input) {
     dataSources: Array.isArray(input.dataSources) ? input.dataSources.map(hydrateDataSource) : [],
     queries: Array.isArray(input.queries) ? input.queries.map(hydrateQuery) : [],
     visualizations: Array.isArray(input.visualizations) ? input.visualizations.map((viz) => hydrateVisualization(viz, input.queries || [])) : [],
-    dashboards: Array.isArray(input.dashboards) ? input.dashboards : [],
+    dashboards: Array.isArray(input.dashboards) ? input.dashboards.map(normalizeDashboard) : [],
     aiHistory: Array.isArray(input.aiHistory) ? input.aiHistory.map(sanitizeAiHistoryItem).slice(-100) : [],
     metadata: {
-      appVersion: input.metadata?.appVersion || APP_VERSION,
-      buildDate: input.metadata?.buildDate || BUILD_DATE,
+      appVersion: APP_VERSION,
+      buildDate: BUILD_DATE,
     },
     active: {
       dataSourceId: input.active?.dataSourceId ?? null,

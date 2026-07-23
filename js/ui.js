@@ -1,6 +1,7 @@
 import { AI_CONTRACT_VERSION, APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL, DEPENDENCIES, VIZ_SPEC_VERSION, WORKSPACE_SCHEMA_VERSION } from "./constants.js";
 import { AI_ACTIONS } from "./ai-contracts.js";
 import { getDatabaseStatus } from "./db.js";
+import { getDashboardRunnerStatus } from "./dashboard-runner.js";
 import { getRendererStatus } from "./viz-renderer.js";
 import { chartTypes, defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
 import { html, safeString, truncate } from "./utils.js";
@@ -46,6 +47,25 @@ export function elements() {
     copySpec: $("copySpec"),
     specStatus: $("specStatus"),
     specEditor: $("specEditor"),
+    dashboardStatus: $("dashboardStatus"),
+    dashboardSelect: $("dashboardSelect"),
+    newDashboard: $("newDashboard"),
+    renameDashboard: $("renameDashboard"),
+    duplicateDashboard: $("duplicateDashboard"),
+    deleteDashboard: $("deleteDashboard"),
+    dashboardVizChooser: $("dashboardVizChooser"),
+    addDashboardViz: $("addDashboardViz"),
+    refreshDashboard: $("refreshDashboard"),
+    refreshFailedCards: $("refreshFailedCards"),
+    cancelDashboardRefresh: $("cancelDashboardRefresh"),
+    addRegionFilter: $("addRegionFilter"),
+    clearDashboardFilters: $("clearDashboardFilters"),
+    exportDashboard: $("exportDashboard"),
+    dashboardImportInput: $("dashboardImportInput"),
+    snapshotDashboard: $("snapshotDashboard"),
+    copyDeploymentInfo: $("copyDeploymentInfo"),
+    dashboardFilterBar: $("dashboardFilterBar"),
+    dashboardCanvas: $("dashboardCanvas"),
     footerVersion: $("footerVersion"),
     aiStatus: $("aiStatus"),
     aiEnabled: $("aiEnabled"),
@@ -93,6 +113,7 @@ export function renderApp(state) {
   renderResult(state.currentResult);
   renderBuilder(state);
   renderSpec(state.currentSpec, state.currentResult);
+  renderDashboard(state);
   renderAi(state);
   renderDebug(state);
 }
@@ -230,6 +251,8 @@ function renderSpec(spec, result) {
 function renderDebug(state) {
   const db = getDatabaseStatus();
   const renderer = getRendererStatus();
+  const dashboardRunner = getDashboardRunnerStatus();
+  const activeDashboard = state.workspace.dashboards.find((dashboard) => dashboard.id === state.workspace.active.dashboardId);
   const report = {
     appVersion: APP_VERSION,
     buildDate: BUILD_DATE,
@@ -247,13 +270,29 @@ function renderDebug(state) {
       connection: db.connection,
       echartsVersion: renderer.echartsRuntimeVersion,
       indexedDb: state.storageStatus.indexedDb,
+      echartsInstanceCount: renderer.instanceCount,
     },
     workspace: {
       id: state.workspace.id,
       dataSourceCount: state.workspace.dataSources.length,
       savedQueryCount: state.workspace.queries.length,
       savedVisualizationCount: state.workspace.visualizations.length,
+      dashboardCount: state.workspace.dashboards.length,
+      activeDashboardId: state.workspace.active.dashboardId,
+      activeDashboardCardCount: activeDashboard?.layout.length || 0,
       active: state.workspace.active,
+    },
+    dashboard: {
+      activeFilterCount: activeDashboard?.filters.filter((filter) => filter.enabled !== false).length || 0,
+      lastRefreshDuration: dashboardRunner.durationMs,
+      successfulCardCount: dashboardRunner.successful,
+      failedCardCount: dashboardRunner.failed,
+      cancelledCardCount: dashboardRunner.cancelled,
+      queryConcurrencyLimit: dashboardRunner.concurrencyLimit,
+      resultCacheEntryCount: dashboardRunner.cacheEntries,
+      lastDashboardExportTime: state.dashboard.lastExportAt,
+      lastSnapshotExportTime: state.dashboard.lastSnapshotAt,
+      lastDashboardError: state.dashboard.lastError,
     },
     lastQueryRuntime: state.currentResult?.runtimeMs ?? null,
     lastError: state.errors[0] || null,
@@ -277,6 +316,74 @@ function renderDebug(state) {
     },
   };
   elements().debugReport.textContent = JSON.stringify(report, null, 2);
+}
+
+function renderDashboard(state) {
+  const el = elements();
+  const dashboards = state.workspace.dashboards || [];
+  const active = dashboards.find((dashboard) => dashboard.id === state.workspace.active.dashboardId) || dashboards[0];
+  el.dashboardSelect.innerHTML = dashboards.map((dashboard) => `<option value="${html(dashboard.id)}">${html(dashboard.name)}</option>`).join("");
+  if (active) el.dashboardSelect.value = active.id;
+  el.dashboardVizChooser.innerHTML = state.workspace.visualizations.map((viz) => {
+    const query = state.workspace.queries.find((item) => item.id === viz.queryId);
+    return `<option value="${html(viz.id)}">${html(viz.name)} · ${html(viz.spec?.type || "")} · ${html(query?.name || "missing query")}</option>`;
+  }).join("");
+  if (!active) {
+    el.dashboardStatus.textContent = "No dashboard selected.";
+    el.dashboardFilterBar.innerHTML = "";
+    el.dashboardCanvas.innerHTML = `<div class="empty-state">Create a dashboard to add saved visualizations.</div>`;
+    return;
+  }
+  el.dashboardStatus.textContent = `${active.name} · ${active.layout.length} cards`;
+  el.dashboardFilterBar.innerHTML = active.filters.length
+    ? active.filters.map((filter) => `<span class="notice">${html(filter.name)} ${html(filter.operator)} ${html(Array.isArray(filter.value) ? filter.value.join(", ") : filter.value ?? "")}</span>`).join("")
+    : `<span class="status">No shared filters. Dashboard filters apply only when a compatible result field exists.</span>`;
+  el.dashboardCanvas.innerHTML = active.layout.map((card) => renderDashboardCard(card, state)).join("");
+}
+
+function renderDashboardCard(card, state) {
+  const viz = state.workspace.visualizations.find((item) => item.id === card.visualizationId);
+  const query = viz ? state.workspace.queries.find((item) => item.id === viz.queryId) : null;
+  const cardState = state.dashboard.cardStates[card.id] || { status: "idle" };
+  const broken = !viz || !query || ["error", "unavailable"].includes(cardState.status);
+  const title = card.titleOverride || viz?.name || "Broken visualization";
+  return `<article class="dashboard-card${broken ? " broken" : ""}" data-card-id="${html(card.id)}" style="grid-column: ${card.x + 1} / span ${card.width}; grid-row: span ${card.height};">
+    <header>
+      <div>
+        <h3>${html(card.showTitle ? title : "")}</h3>
+        <small>${html(cardState.status)}${cardState.cached ? " · cached" : ""}${cardState.error ? ` · ${cardState.error}` : ""}</small>
+      </div>
+      <div class="card-controls">
+        <button data-dashboard-action="refresh-card" data-card-id="${html(card.id)}">Refresh</button>
+        <button data-dashboard-action="view-sql" data-card-id="${html(card.id)}">SQL</button>
+        <button data-dashboard-action="open-viz" data-card-id="${html(card.id)}">Open</button>
+        <button data-dashboard-action="duplicate-card" data-card-id="${html(card.id)}">Duplicate</button>
+        <button data-dashboard-action="remove-card" data-card-id="${html(card.id)}">Remove</button>
+      </div>
+    </header>
+    <div id="dashboardChart_${html(card.id)}" class="dashboard-card-chart" role="img" aria-label="${html(title)} chart">${chartPlaceholder(cardState)}</div>
+    <footer>
+      <span>Rows: ${html(cardState.rowCount ?? "-")} · Runtime: ${html(cardState.runtimeMs ?? "-")} ms</span>
+      <span>Refreshed: ${html(cardState.refreshedAt || "never")}</span>
+      <span class="card-controls">
+        <button data-dashboard-action="move-left" data-card-id="${html(card.id)}">Left</button>
+        <button data-dashboard-action="move-right" data-card-id="${html(card.id)}">Right</button>
+        <button data-dashboard-action="move-up" data-card-id="${html(card.id)}">Up</button>
+        <button data-dashboard-action="move-down" data-card-id="${html(card.id)}">Down</button>
+        <button data-dashboard-action="wider" data-card-id="${html(card.id)}">W+</button>
+        <button data-dashboard-action="narrower" data-card-id="${html(card.id)}">W-</button>
+        <button data-dashboard-action="taller" data-card-id="${html(card.id)}">H+</button>
+        <button data-dashboard-action="shorter" data-card-id="${html(card.id)}">H-</button>
+      </span>
+    </footer>
+  </article>`;
+}
+
+function chartPlaceholder(cardState) {
+  if (cardState.status === "ready") return "";
+  if (cardState.status === "loading") return `<div class="empty-state">Loading...</div>`;
+  if (cardState.error) return `<div class="empty-state">Broken: ${html(cardState.error)}</div>`;
+  return `<div class="empty-state">Refresh this card to render.</div>`;
 }
 
 function renderAi(state) {

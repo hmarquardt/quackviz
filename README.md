@@ -1,25 +1,25 @@
 # QuackViz
 
-QuackViz is a static, browser-local DuckDB-WASM and Apache ECharts analytical workspace. Current application version: `0.3.0`, build date `2026-07-23`.
+QuackViz is a static, browser-local DuckDB-WASM and Apache ECharts analytical workspace. Current application version: `0.4.0`, build date `2026-07-23`.
 
-## Current Milestone: Structured AI Augmentation
+## Current Milestone: Dashboards
 
-QuackViz now includes a structured OpenRouter-backed analytical copilot. AI output is treated as untrusted input. QuackViz does not silently execute AI-generated SQL.
+QuackViz now supports local dashboard workspaces built from saved SQL-backed visualizations.
 
-The AI workflow is:
+The dashboard workflow is:
 
 ```text
-table metadata and schema context
--> OpenRouter structured JSON response
--> contract validation
--> SQL safety validation
--> explicit EXPLAIN / limited preview
--> visualization-spec validation
--> ECharts preview
--> optional builder transfer or save
+tables and profiles
+-> queries
+-> visualizations
+-> dashboard layout
+-> shared filters
+-> coordinated DuckDB execution
+-> ECharts rendering
+-> saved analytical workspace
 ```
 
-Dashboards, maps, reports, cross-filtering, background agents, and autonomous execution are not implemented.
+Maps, geographic layers, PDF reports, server sharing, and multi-user collaboration are not implemented.
 
 ## Run Locally
 
@@ -31,8 +31,6 @@ python3 -m http.server 8080
 
 Open `http://localhost:8080/`.
 
-Use a static server rather than `file://` because ES modules, DuckDB-WASM workers, and browser storage APIs require a normal browser origin.
-
 ## Run Tests
 
 Start the same static server, then open:
@@ -41,130 +39,143 @@ Start the same static server, then open:
 http://localhost:8080/tests/
 ```
 
-The browser test page uses mocked/static AI payloads only. It does not make billable provider calls.
+The module tests also run under Node for DOM-free coverage.
 
 ## Exact Dependency Versions
-
-Pinned versions are centralized in `js/constants.js`, shown in Debug, and used by runtime imports:
 
 - Apache ECharts `6.0.0`
   - `https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.esm.min.js`
 - DuckDB-WASM `1.33.1-dev57.0`
   - `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm`
 
-## OpenRouter Setup
+Pinned versions are centralized in `js/constants.js`, shown in Debug, and reflected in the footer and exports.
 
-Open the AI tab, enable AI, paste an OpenRouter API key, choose or refresh a model, preview the context, then run an AI action. The key is stored only in localStorage and is excluded from workspace export, debug output, AI history, and UI logs.
+## Dashboard Data Model
 
-Model discovery uses `https://openrouter.ai/api/v1/models`. If the endpoint fails, QuackViz shows a pinned fallback list and does not block the rest of the app.
+Dashboards are stored in `workspace.dashboards` and selected through `workspace.active.dashboardId`. A dashboard card references a saved visualization by stable ID; it does not duplicate query or visualization definitions.
 
-## Supported AI Actions
+Each dashboard includes:
 
-- Explore dataset
-- Generate visualization proposals
-- Generate SQL
-- Explain current result
-- Critique visualization
-- Improve visualization
-- Repair failed SQL
-- Explain SQL
+- `layout`: visualization cards with `x`, `y`, `width`, `height`, title flags, refresh settings, and local filters
+- `filters`: shared dashboard filters
+- `settings`: manual refresh mode, filter bar visibility, compact-card flags, and concurrency limit
+- `provenance`: user or AI origin metadata
 
-The active UI currently exposes the shared structured request flow and proposal lifecycle. Result explanation, critique, improve, and repair use separate validators/contracts and are ready for structured responses, but their richer editing/patch application flows remain intentionally constrained.
+Existing workspaces without dashboards are migrated with an empty `dashboards` array.
 
-## Structured Contracts
+## Layout Model
 
-Added versioned contracts:
+The dashboard canvas uses CSS Grid with a 12-column desktop layout. Cards support button-based movement and resizing:
 
-- `quackviz-ai-proposals`
-- `quackviz-ai-repair`
-- `quackviz-ai-result-explanation`
-- `quackviz-ai-chart-critique`
+- Move left/right/up/down
+- Increase/decrease width
+- Increase/decrease height
+- Duplicate card
+- Remove card
 
-The validator rejects malformed JSON, unsupported contract versions, unknown top-level properties, function-like values, script tags, raw ECharts options by omission, invalid confidence, unsafe SQL, unknown source tables, and visualization fields that do not match expected SQL output.
+Responsive layouts collapse cards on narrower screens. Drag-and-drop is intentionally not included in this milestone.
 
-## Privacy Model
+## Add Visualization Workflow
 
-By default QuackViz sends schema-first context only:
+Create a dashboard, choose a saved visualization, and add it as a card. The same visualization may be added more than once. Deleting a dashboard does not delete underlying queries or visualizations.
 
-- App and contract version
-- Selected table names
-- Row counts
-- Column names
-- DuckDB types
-- Heuristic semantic types and confidence
-- Sensitive-field warnings and exclusions
+## Refresh and Caching
 
-Raw sample rows are opt-in through the context mode controls. When sample rows are enabled, the UI warns that rows will be sent to the selected external AI provider. Sensitive-field detection is heuristic, not a guarantee.
+The dashboard runner resolves each card’s visualization and query, applies compatible filters, validates SQL, executes through DuckDB, and returns per-card state:
 
-Likely sensitive columns include names, email, phone, address, date of birth, account numbers, credit cards, medical identifiers, IP/device identifiers, and free-text comments.
+- `idle`
+- `loading`
+- `ready`
+- `error`
+- `unavailable`
+- `cancelled`
 
-## SQL Safety Pipeline
+One failed card does not block the rest. Refresh uses a small concurrency limit and records dashboard refresh stats in Debug. Query results are cached in memory by query/filter/layout signature and invalidated on data reload or explicit refresh.
 
-AI SQL passes through defensive lexical gates:
+## Filters
 
-1. Trim and normalize one trailing semicolon.
-2. Reject empty SQL, null bytes, and excessive length.
-3. Reject multiple statements while accounting for comments and quoted strings.
-4. Allow only `SELECT` and `WITH`.
-5. Block destructive or environment-changing keywords such as `DROP`, `CREATE`, `COPY`, `INSTALL`, `ATTACH`, and `PRAGMA`.
-6. Block obvious external-file and URL access.
-7. Compare referenced tables with workspace metadata where practical.
-8. Run `EXPLAIN` only after explicit user action.
-9. Run limited preview through a safe wrapper only after explicit user action.
+Shared dashboard filters support category, multi-category, numeric/date ranges, boolean equality, null/not-null, and text contains. Card-local filters use the same model internally.
 
-These checks are defensive controls, not a formal SQL sandbox.
+Dashboard filters are applied only when a compatible field binding exists.
 
-## Proposal Lifecycle
+QuackViz does not silently rewrite arbitrary SQL to force dashboard filters. The initial implementation safely wraps result queries:
 
-Each proposal card shows title, question, description, chart type, source tables, confidence, validation status, and actions:
-
-- Inspect
-- Validate
-- Preview data
-- Preview chart
-- Open in builder
-- Save
-- Copy SQL
-- Copy proposal JSON
-- Reject
-
-Opening a proposal in the builder loads an unsaved AI-generated query and spec. Saving creates durable query and visualization objects with OpenRouter/model/proposal provenance.
-
-## AI History and Diagnostics
-
-AI interaction metadata is stored with the workspace and capped to recent entries. Stored history includes action, provider, model, selected tables, context mode, sample-row flag, summary, proposal IDs, usage, diagnostics, status, and sanitized errors. It excludes API keys, authorization headers, and raw sensitive rows.
-
-Debug includes AI enabled state, selected provider/model, model-list refresh time, interaction count, last action duration/status, contract version, proposal count, parse/safety errors, sample-row mode, sensitive warnings, and whether a key is configured.
-
-## Existing Manual Workflow
-
-The first vertical slice remains:
-
-```text
-sample CSV -> DuckDB-WASM table -> SQL query -> result dataset -> QuackViz spec -> ECharts option -> rendered chart -> saved query/visualization metadata
+```sql
+SELECT *
+FROM (
+  <original query>
+) AS __quackviz_dashboard
+WHERE <compatible predicates>
 ```
 
-DuckDB tables are in memory for this milestone. Reload restores workspace metadata but may require reloading the sample table.
+If a field is not present in a card result, the filter is skipped and reported.
 
-## Version and Footer
+## Import and Export
 
-The canonical version and build date live in `js/constants.js`. The same constants feed workspace metadata, Debug, AI request metadata, tests, and the footer.
+Dashboard package export uses:
+
+```json
+{
+  "format": "quackviz-dashboard",
+  "formatVersion": 1,
+  "exportedBy": {
+    "app": "QuackViz",
+    "appVersion": "0.4.0",
+    "buildDate": "2026-07-23",
+    "exportedAt": "..."
+  },
+  "dashboard": {},
+  "visualizations": [],
+  "queries": []
+}
+```
+
+Packages include referenced visualizations and queries, omit API keys and result datasets, validate future versions, and remap IDs on collision.
+
+## Static Snapshot Export
+
+Dashboard snapshot export creates a self-contained non-interactive HTML snapshot with dashboard title, timestamp, app version/build date, card status, query titles, optional SQL, and runtime metadata. It does not include API keys, source tables, DuckDB databases, or executable AI content.
+
+## AI Dashboards
+
+The AI action catalog includes:
+
+- Build a dashboard
+- Critique dashboard
+
+Added contracts:
+
+- `quackviz-ai-dashboard`
+- `quackviz-ai-dashboard-critique`
+
+AI dashboard output is validated for contract version, existing visualization IDs, unsafe SQL, visualization specs, layout bounds, excessive card counts, executable content, and unsupported fields. AI dashboard proposals require user approval; QuackViz does not automatically execute or save AI dashboard output.
+
+## Existing AI Safety
+
+OpenRouter API keys remain localStorage-only and are excluded from workspace export, dashboard export, snapshot export, Debug, and AI history. AI-generated SQL still passes through the existing SQL safety pipeline before preview.
+
+## Footer and Deployment Info
+
+The persistent footer shows the canonical app version and build date. Debug, workspace metadata, dashboard packages, snapshots, and AI diagnostics use the same constants. The Dashboard toolbar includes a “Copy deployment info” action with app version, build date, workspace ID, active dashboard ID, and page URL.
+
+## Accessibility and Performance
+
+Dashboard controls are keyboard-accessible buttons and selects. Cards show text state, runtime, row count, and refreshed time. Reduced-motion settings are passed through the chart compiler/renderer. The runner avoids unbounded concurrent queries and keeps result caches in memory only.
 
 ## Current Limitations
 
-- OPFS DuckDB persistence is not implemented.
-- Only the included sales sample is wired into the active import UI.
-- Only line and vertical bar chart specs are supported.
-- AI repair, explanation, and critique contracts are validated, but application of critique patches is intentionally limited.
-- Automated tests mock AI outputs and do not call OpenRouter.
-- Browser self-test requires running the app from a static server with DuckDB/ECharts CDN access.
+- Dashboard filters work against result fields; source-column filtering for arbitrary SQL requires explicit future bindings.
+- Date-range presets are not yet a rich dedicated control; date filters are supported by the filter model and wrapping layer.
+- PNG export per dashboard card is not wired in this milestone UI.
+- Browser self-test requires a static server and CDN access.
+- Import/export for the broader workspace remains limited compared with the dashboard package export.
 
 ## Next Milestone
 
 Recommended focus:
 
-1. Restore and harden broader manual import/export affordances.
-2. Add richer result-explanation and critique detail panels.
-3. Add approved spec-patch application for visualization improvements.
-4. Extend deterministic recommendations and pass them into AI context.
-5. Consider OPFS persistence or explicit source-file reattachment.
+1. Add explicit filter-binding metadata to builder-generated queries.
+2. Add richer filter UI for date ranges and per-card local filters.
+3. Add card PNG export using the chart instance manager.
+4. Add approved AI dashboard creation from validated proposals.
+5. Restore broader workspace import/export and visualization package exports.

@@ -43,6 +43,7 @@
           <button class="tab active" data-tab="data">Data</button>
           <button class="tab" data-tab="sql">SQL</button>
           <button class="tab" data-tab="visualize">Visualize</button>
+          <button class="tab" data-tab="dashboard">Dashboard</button>
           <button class="tab" data-tab="ai">AI</button>
           <button class="tab" data-tab="debug">Debug</button>
         </nav>
@@ -140,6 +141,33 @@
               <div id="aiHistory" class="object-list"></div>
             </section>
           </div>
+        </section>
+
+        <section id="dashboardTab" class="tab-panel">
+          <div class="section-head">
+            <h2>Dashboard</h2>
+            <span id="dashboardStatus" class="status">Create or select a dashboard.</span>
+          </div>
+          <div class="dashboard-toolbar">
+            <label>Dashboard <select id="dashboardSelect"></select></label>
+            <button id="newDashboard">New</button>
+            <button id="renameDashboard">Rename</button>
+            <button id="duplicateDashboard">Duplicate</button>
+            <button id="deleteDashboard" class="danger">Delete</button>
+            <label>Add visualization <select id="dashboardVizChooser"></select></label>
+            <button id="addDashboardViz">Add</button>
+            <button id="refreshDashboard" class="primary">Refresh all</button>
+            <button id="refreshFailedCards">Refresh failed</button>
+            <button id="cancelDashboardRefresh">Cancel</button>
+            <button id="addRegionFilter">Add region filter</button>
+            <button id="clearDashboardFilters">Clear filters</button>
+            <button id="exportDashboard">Export package</button>
+            <label class="compact-file">Import package<input id="dashboardImportInput" type="file" accept=".json,application/json"></label>
+            <button id="snapshotDashboard">Export snapshot</button>
+            <button id="copyDeploymentInfo">Copy deployment info</button>
+          </div>
+          <div id="dashboardFilterBar" class="dashboard-filter-bar"></div>
+          <div id="dashboardCanvas" class="dashboard-grid" aria-live="polite"></div>
         </section>
 
         <section id="debugTab" class="tab-panel">

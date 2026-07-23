@@ -8,6 +8,8 @@ const ROOT_KEYS = new Set(["contract", "contractVersion", "summary", "proposals"
 const REPAIR_KEYS = new Set(["contract", "contractVersion", "summary", "repairedSql", "expectedColumns", "visualization", "changes", "assumptions", "cautions"]);
 const EXPLANATION_KEYS = new Set(["contract", "contractVersion", "headline", "summary", "findings", "cautions", "followUpQuestions"]);
 const CRITIQUE_KEYS = new Set(["contract", "contractVersion", "assessment", "issues", "recommendations", "alternativeVisualization", "cautions"]);
+const DASHBOARD_KEYS = new Set(["contract", "contractVersion", "title", "description", "audience", "proposals", "filters", "narrativeOrder", "assumptions", "cautions"]);
+const DASHBOARD_CRITIQUE_KEYS = new Set(["contract", "contractVersion", "summary", "issues", "recommendations", "proposedLayoutChanges", "proposedAdditions", "proposedRemovals", "cautions"]);
 
 export function parseAiJson(text) {
   const trimmed = String(text || "").trim();
@@ -24,6 +26,8 @@ export function validateAiResponse(payload, { expectedContract, knownTables = []
   if (expectedContract === AI_CONTRACTS.repair) return validateRepair(payload, knownTables, dataset);
   if (expectedContract === AI_CONTRACTS.explanation) return validateExplanation(payload);
   if (expectedContract === AI_CONTRACTS.critique) return validateCritique(payload);
+  if (expectedContract === AI_CONTRACTS.dashboard) return validateAiDashboard(payload, knownTables, dataset);
+  if (expectedContract === AI_CONTRACTS.dashboardCritique) return validateAiDashboardCritique(payload);
   return validateProposalResponse(payload, knownTables, dataset);
 }
 
@@ -89,6 +93,39 @@ export function validateCritique(payload) {
     if (rec.proposedSpecPatch && Object.keys(rec.proposedSpecPatch).some((key) => !["title", "subtitle", "encoding", "options"].includes(key))) {
       errors.push(error(`recommendations[${index}].proposedSpecPatch`, "Spec patches may only change title, subtitle, encoding, or options."));
     }
+  }
+  return { valid: errors.length === 0, errors, warnings: [], critique: payload };
+}
+
+export function validateAiDashboard(payload, knownTables = [], workspace = { visualizations: [] }) {
+  const errors = baseContract(payload, AI_CONTRACTS.dashboard, DASHBOARD_KEYS);
+  if (!payload?.title) errors.push(error("title", "Dashboard title is required."));
+  if (!Array.isArray(payload?.proposals)) errors.push(error("proposals", "Dashboard proposals must be an array."));
+  if ((payload?.proposals || []).length > 12) errors.push(error("proposals", "Dashboard proposals exceed the 12-card milestone limit."));
+  const vizIds = new Set((workspace.visualizations || []).map((viz) => viz.id));
+  for (const [index, proposal] of (payload?.proposals || []).entries()) {
+    if (!["existing-visualization", "new-visualization"].includes(proposal.type)) errors.push(error(`proposals[${index}].type`, "Unsupported dashboard proposal type."));
+    if (proposal.type === "existing-visualization" && !vizIds.has(proposal.visualizationId)) errors.push(error(`proposals[${index}].visualizationId`, `Unknown visualization '${proposal.visualizationId}'.`));
+    if (proposal.layout && (proposal.layout.width < 1 || proposal.layout.width > 12 || proposal.layout.height < 2 || proposal.layout.height > 12)) errors.push(error(`proposals[${index}].layout`, "Layout is outside allowed bounds."));
+    if (proposal.sql) {
+      const sqlSafety = validateSqlSafety(proposal.sql, knownTables);
+      errors.push(...sqlSafety.errors.map((item) => error(`proposals[${index}].sql`, item.message)));
+    }
+    if (proposal.visualization) {
+      const expected = proposal.expectedColumns || [];
+      const dataset = { columns: expected.map((column) => ({ name: column.name, inferredType: column.dataType || "string", duckType: "" })) };
+      const spec = validateVisualizationSpec({ ...proposal.visualization, dataset: { queryId: "pending" } }, dataset);
+      errors.push(...spec.errors.map((item) => error(`proposals[${index}].visualization.${item.path}`, item.message)));
+    }
+  }
+  return { valid: errors.length === 0, errors, warnings: [], dashboard: payload };
+}
+
+export function validateAiDashboardCritique(payload) {
+  const errors = baseContract(payload, AI_CONTRACTS.dashboardCritique, DASHBOARD_CRITIQUE_KEYS);
+  if (!payload?.summary) errors.push(error("summary", "Dashboard critique summary is required."));
+  for (const key of ["issues", "recommendations", "proposedLayoutChanges", "proposedAdditions", "proposedRemovals", "cautions"]) {
+    if (!Array.isArray(payload?.[key])) errors.push(error(key, `${key} must be an array.`));
   }
   return { valid: errors.length === 0, errors, warnings: [], critique: payload };
 }

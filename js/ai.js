@@ -40,7 +40,7 @@ export async function runAiAction({ apiKey, action, question, workspace, selecte
     error.diagnostics = response.diagnostics;
     throw error;
   }
-  const validation = validateAiResponse(parsed.value, { expectedContract, knownTables: selectedTables, dataset: currentResult });
+  const validation = validateAiResponse(parsed.value, { expectedContract, knownTables: selectedTables, dataset: expectedContract === "quackviz-ai-dashboard" ? workspace : currentResult });
   const result = {
     action,
     provider: OPENROUTER.provider,

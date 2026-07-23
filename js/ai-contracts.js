@@ -5,6 +5,8 @@ export const AI_CONTRACTS = {
   repair: "quackviz-ai-repair",
   explanation: "quackviz-ai-result-explanation",
   critique: "quackviz-ai-chart-critique",
+  dashboard: "quackviz-ai-dashboard",
+  dashboardCritique: "quackviz-ai-dashboard-critique",
 };
 
 export const AI_ACTIONS = [
@@ -16,6 +18,8 @@ export const AI_ACTIONS = [
   { id: "improve-visualization", label: "Improve visualization" },
   { id: "repair-sql", label: "Repair failed SQL" },
   { id: "explain-sql", label: "Explain SQL" },
+  { id: "build-dashboard", label: "Build a dashboard" },
+  { id: "critique-dashboard", label: "Critique dashboard" },
 ];
 
 export function buildSystemPrompt(extra = "") {
@@ -37,6 +41,8 @@ export function actionContract(action) {
   if (action === "repair-sql") return AI_CONTRACTS.repair;
   if (action === "explain-result") return AI_CONTRACTS.explanation;
   if (action === "critique-visualization" || action === "improve-visualization") return AI_CONTRACTS.critique;
+  if (action === "build-dashboard") return AI_CONTRACTS.dashboard;
+  if (action === "critique-dashboard") return AI_CONTRACTS.dashboardCritique;
   return AI_CONTRACTS.proposals;
 }
 

@@ -1,4 +1,3 @@
-import { executeSql } from "./db.js";
 import { nowIso } from "./utils.js";
 import { inferSourceTables } from "./workspace.js";
 
@@ -6,6 +5,7 @@ const BLOCKED = /\b(INSERT|UPDATE|DELETE|DROP|ALTER|CREATE|COPY\s+TO|INSTALL|LOA
 
 export async function runQuery(sql, queryId = null) {
   try {
+    const { executeSql } = await import("./db.js");
     const result = await executeSql(sql);
     return {
       columns: result.columns,

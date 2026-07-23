@@ -139,6 +139,7 @@ label {
 }
 
 input[type="checkbox"] { width: auto; min-height: auto; }
+.compact-file input { display: none; }
 
 .tabs {
   display: flex;
@@ -274,6 +275,80 @@ th {
   background: var(--panel-2);
 }
 
+.dashboard-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
+  gap: 8px;
+  align-items: end;
+  margin-bottom: 10px;
+}
+
+.dashboard-toolbar label {
+  min-width: 180px;
+}
+
+.dashboard-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-auto-rows: 92px;
+  gap: 10px;
+  align-items: stretch;
+}
+
+.dashboard-card {
+  min-width: 0;
+  min-height: 0;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  overflow: hidden;
+}
+
+.dashboard-card.broken {
+  border-color: var(--danger);
+}
+
+.dashboard-card header,
+.dashboard-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px;
+  border-bottom: 1px solid var(--border);
+}
+
+.dashboard-card footer {
+  border-top: 1px solid var(--border);
+  border-bottom: 0;
+  color: var(--muted);
+}
+
+.dashboard-card-chart {
+  min-height: 160px;
+  height: 100%;
+}
+
+.card-controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.card-controls button {
+  min-height: 26px;
+  padding: 2px 6px;
+}
+
 .test-pass { color: var(--accent); }
 .test-fail { color: var(--danger); }
 
@@ -284,6 +359,13 @@ th {
     overflow: visible;
   }
   .ai-grid { grid-template-columns: 1fr; }
+  .dashboard-grid {
+    display: block;
+  }
+  .dashboard-card {
+    margin-bottom: 10px;
+    min-height: 360px;
+  }
   .pane, .tab-panel {
     height: auto;
     min-height: 0;

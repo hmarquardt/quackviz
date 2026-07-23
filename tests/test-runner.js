@@ -6,9 +6,14 @@ import { aiSqlSafetyTests } from "./ai-sql-safety.test.js";
 import { aiContextTests } from "./ai-context.test.js";
 import { aiProposalTests } from "./ai-proposals.test.js";
 import { versionTests } from "./version.test.js";
+import { dashboardModelTests } from "./dashboard-model.test.js";
+import { dashboardFilterTests } from "./dashboard-filters.test.js";
+import { dashboardExportTests } from "./dashboard-export.test.js";
+import { dashboardRunnerTests } from "./dashboard-runner.test.js";
+import { aiDashboardTests } from "./ai-dashboard.test.js";
 
 const resultsEl = document.getElementById("results");
-const tests = [...vizSpecTests, ...vizCompilerTests, ...workspaceTests, ...aiContractTests, ...aiSqlSafetyTests, ...aiContextTests, ...aiProposalTests, ...versionTests];
+const tests = [...vizSpecTests, ...vizCompilerTests, ...workspaceTests, ...aiContractTests, ...aiSqlSafetyTests, ...aiContextTests, ...aiProposalTests, ...versionTests, ...dashboardModelTests, ...dashboardFilterTests, ...dashboardExportTests, ...dashboardRunnerTests, ...aiDashboardTests];
 const results = [];
 
 for (const test of tests) {

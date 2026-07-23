@@ -1,4 +1,4 @@
-import { APP_VERSION, DEFAULT_SALES_SQL } from "./constants.js";
+import { APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL } from "./constants.js";
 import { runAiAction, fetchOpenRouterModels } from "./ai.js";
 import { buildAiContext, contextPreview } from "./ai-context.js";
 import { AI_CONTRACTS } from "./ai-contracts.js";
@@ -6,6 +6,9 @@ import { makeInteraction } from "./ai-history.js";
 import { proposalToBuilderState, saveAiProposal, markRejected } from "./ai-proposals.js";
 import { explainSql, previewSql as previewAiSql, validateSqlSafety } from "./ai-sql-safety.js";
 import { validateAiResponse, validateRepair } from "./ai-validate.js";
+import { addCard, addDashboard, createDashboard, deleteDashboard as deleteDashboardModel, duplicateCard, duplicateDashboard as duplicateDashboardModel, findDashboard, moveCard, removeCard, resizeCard, updateDashboard } from "./dashboard.js";
+import { createSnapshotHtml, exportDashboardPackage, importDashboardPackage } from "./dashboard-export.js";
+import { invalidateDashboardCache, refreshCard, refreshDashboard as runDashboardRefresh } from "./dashboard-runner.js";
 import { initializeDatabase, executeSql, tableExists } from "./db.js";
 import { loadIncludedSalesSample } from "./import.js";
 import { runQuery, buildQuerySaveInput } from "./query.js";
@@ -14,12 +17,13 @@ import { getOpenRouterApiKey, initializeStorage, loadAiModelCache, loadThemePref
 import { addAiHistory, addOrUpdateDataSource, addOrUpdateQuery, addOrUpdateVisualization, createWorkspace, hydrateWorkspace } from "./workspace.js";
 import { defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
 import { compileVisualizationSpec } from "./viz-compiler.js";
-import { renderVisualization, showEmpty } from "./viz-renderer.js";
+import { disposeChartInstance, renderVisualization, showEmpty } from "./viz-renderer.js";
 import { copyText, nowIso, uid } from "./utils.js";
 import { elements, getThemeTokens, initializeStaticControls, renderApp, renderSelfTest, seedDefaultSql, selectTab } from "./ui.js";
 
 let saveSuppressed = false;
 let currentAiAbortController = null;
+let currentDashboardAbortController = null;
 
 window.addEventListener("error", (event) => addError("app", "window-error", event.error || new Error(event.message)));
 window.addEventListener("unhandledrejection", (event) => addError("app", "unhandled-rejection", event.reason));
@@ -119,8 +123,24 @@ function bindEvents() {
     }
   });
   el.clearAiHistory.addEventListener("click", () => updateWorkspace((workspace) => { workspace.aiHistory = []; }));
+  el.newDashboard.addEventListener("click", createNewDashboard);
+  el.dashboardSelect.addEventListener("change", () => updateWorkspace((workspace) => { workspace.active.dashboardId = el.dashboardSelect.value || null; }));
+  el.renameDashboard.addEventListener("click", renameActiveDashboard);
+  el.duplicateDashboard.addEventListener("click", duplicateActiveDashboard);
+  el.deleteDashboard.addEventListener("click", deleteActiveDashboard);
+  el.addDashboardViz.addEventListener("click", addSelectedVisualizationToDashboard);
+  el.refreshDashboard.addEventListener("click", () => refreshActiveDashboard({ bypassCache: true }));
+  el.refreshFailedCards.addEventListener("click", refreshFailedDashboardCards);
+  el.cancelDashboardRefresh.addEventListener("click", cancelDashboardRefresh);
+  el.addRegionFilter.addEventListener("click", addRegionFilter);
+  el.clearDashboardFilters.addEventListener("click", clearDashboardFilters);
+  el.exportDashboard.addEventListener("click", exportActiveDashboard);
+  el.dashboardImportInput.addEventListener("change", importDashboardFromFile);
+  el.snapshotDashboard.addEventListener("click", snapshotActiveDashboard);
+  el.copyDeploymentInfo.addEventListener("click", copyDeploymentInfo);
   document.addEventListener("click", handleObjectSelection);
   document.addEventListener("click", handleAiProposalAction);
+  document.addEventListener("click", handleDashboardAction);
 }
 
 async function restoreTableAvailability() {
@@ -144,6 +164,7 @@ async function loadSalesSample() {
       addOrUpdateDataSource(workspace, source);
     });
     markTableLoaded(source.tableName, true);
+    invalidateDashboardCache();
     elements().sqlEditor.value = DEFAULT_SALES_SQL;
     elements().queryName.value = "Monthly revenue";
     selectTab("data");
@@ -243,6 +264,248 @@ async function rebuildVisualization() {
   } catch (error) {
     addError("chart", "render", error);
   }
+}
+
+function activeDashboardOrNull() {
+  return state.workspace.dashboards.find((dashboard) => dashboard.id === state.workspace.active.dashboardId) || state.workspace.dashboards[0] || null;
+}
+
+function createNewDashboard() {
+  updateWorkspace((workspace) => addDashboard(workspace, createDashboard({ name: `Dashboard ${workspace.dashboards.length + 1}` })));
+  selectTab("dashboard");
+}
+
+function renameActiveDashboard() {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  const name = prompt("Dashboard name", dashboard.name);
+  if (!name) return;
+  updateWorkspace((workspace) => updateDashboard(workspace, dashboard.id, { name }));
+}
+
+function duplicateActiveDashboard() {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  updateWorkspace((workspace) => duplicateDashboardModel(workspace, dashboard.id));
+}
+
+function deleteActiveDashboard() {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  if (!confirm(`Delete dashboard "${dashboard.name}"? Queries and visualizations are kept.`)) return;
+  updateWorkspace((workspace) => deleteDashboardModel(workspace, dashboard.id));
+}
+
+function addSelectedVisualizationToDashboard() {
+  let dashboard = activeDashboardOrNull();
+  if (!dashboard) {
+    updateWorkspace((workspace) => addDashboard(workspace, createDashboard({ name: "Default dashboard" })));
+    dashboard = activeDashboardOrNull();
+  }
+  const vizId = elements().dashboardVizChooser.value;
+  if (!vizId) return;
+  updateWorkspace((workspace) => addCard(findDashboard(workspace, dashboard.id), vizId, "medium"));
+}
+
+async function refreshActiveDashboard({ bypassCache = false } = {}) {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  currentDashboardAbortController = new AbortController();
+  state.dashboard.refreshing = true;
+  state.dashboard.cardStates = Object.fromEntries(dashboard.layout.map((card) => [card.id, { cardId: card.id, status: "loading" }]));
+  notify();
+  try {
+    const result = await runDashboardRefresh({
+      dashboard,
+      workspace: state.workspace,
+      loadedTables: state.loadedTables,
+      bypassCache,
+      concurrencyLimit: dashboard.settings.concurrencyLimit || 3,
+      signal: currentDashboardAbortController.signal,
+    });
+    state.dashboard.cardStates = result.states;
+    state.dashboard.lastRefresh = result;
+    notify();
+    await renderDashboardCharts();
+  } catch (error) {
+    state.dashboard.lastError = error.message;
+    addError("dashboard", "refresh", error);
+  } finally {
+    state.dashboard.refreshing = false;
+    currentDashboardAbortController = null;
+    notify();
+  }
+}
+
+async function refreshFailedDashboardCards() {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  for (const card of dashboard.layout.filter((item) => ["error", "unavailable"].includes(state.dashboard.cardStates[item.id]?.status))) {
+    state.dashboard.cardStates[card.id] = await refreshCard({ dashboard, card, workspace: state.workspace, loadedTables: state.loadedTables, bypassCache: true });
+  }
+  notify();
+  await renderDashboardCharts();
+}
+
+function cancelDashboardRefresh() {
+  if (currentDashboardAbortController) currentDashboardAbortController.abort();
+}
+
+function addRegionFilter() {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  const value = prompt("Region values, comma separated", "East,West");
+  if (!value) return;
+  updateWorkspace((workspace) => {
+    const active = findDashboard(workspace, dashboard.id);
+    active.filters.push({
+      id: uid("filter"),
+      name: "Region",
+      field: "region",
+      semanticType: "category",
+      operator: "in",
+      value: value.split(",").map((item) => item.trim()).filter(Boolean),
+      sourceTables: ["sales"],
+      appliesTo: { mode: "compatible", cardIds: [] },
+      enabled: true,
+    });
+  });
+  invalidateDashboardCache();
+}
+
+function clearDashboardFilters() {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  updateWorkspace((workspace) => { findDashboard(workspace, dashboard.id).filters = []; });
+  invalidateDashboardCache();
+}
+
+async function renderDashboardCharts() {
+  await new Promise((resolve) => requestAnimationFrame(resolve));
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  for (const card of dashboard.layout) {
+    const cardState = state.dashboard.cardStates[card.id];
+    const element = document.getElementById(`dashboardChart_${card.id}`);
+    if (!element || cardState?.status !== "ready") continue;
+    try {
+      await renderVisualization(element, cardState.spec, cardState.result, getThemeTokens(activeThemeName()), `dashboard_${card.id}`);
+    } catch (error) {
+      state.dashboard.cardStates[card.id] = { ...cardState, status: "error", error: error.message };
+      addError("dashboard", "render-card", error);
+    }
+  }
+}
+
+function handleDashboardAction(event) {
+  const button = event.target.closest("[data-dashboard-action]");
+  if (!button) return;
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  const cardId = button.dataset.cardId;
+  const action = button.dataset.dashboardAction;
+  if (action === "refresh-card") { refreshOneDashboardCard(cardId); return; }
+  if (action === "view-sql") {
+    const card = dashboard.layout.find((item) => item.id === cardId);
+    const viz = state.workspace.visualizations.find((item) => item.id === card?.visualizationId);
+    const query = state.workspace.queries.find((item) => item.id === viz?.queryId);
+    if (query) { elements().sqlEditor.value = query.sql; elements().queryName.value = query.name; selectTab("sql"); }
+    return;
+  }
+  if (action === "open-viz") {
+    const card = dashboard.layout.find((item) => item.id === cardId);
+    const viz = state.workspace.visualizations.find((item) => item.id === card?.visualizationId);
+    if (viz) { setActive({ visualizationId: viz.id, queryId: viz.queryId }); setCurrentSpec(viz.spec); loadSpecIntoControls(viz.spec); selectTab("visualize"); }
+    return;
+  }
+  updateWorkspace((workspace) => {
+    const active = findDashboard(workspace, dashboard.id);
+    if (action === "duplicate-card") duplicateCard(active, cardId);
+    if (action === "remove-card") { removeCard(active, cardId); disposeChartInstance(`dashboard_${cardId}`); delete state.dashboard.cardStates[cardId]; }
+    if (action === "move-left") moveCard(active, cardId, -1, 0);
+    if (action === "move-right") moveCard(active, cardId, 1, 0);
+    if (action === "move-up") moveCard(active, cardId, 0, -1);
+    if (action === "move-down") moveCard(active, cardId, 0, 1);
+    if (action === "wider") resizeCard(active, cardId, 1, 0);
+    if (action === "narrower") resizeCard(active, cardId, -1, 0);
+    if (action === "taller") resizeCard(active, cardId, 0, 1);
+    if (action === "shorter") resizeCard(active, cardId, 0, -1);
+  });
+  renderDashboardCharts();
+}
+
+async function refreshOneDashboardCard(cardId) {
+  const dashboard = activeDashboardOrNull();
+  const card = dashboard?.layout.find((item) => item.id === cardId);
+  if (!dashboard || !card) return;
+  state.dashboard.cardStates[card.id] = { cardId: card.id, status: "loading" };
+  notify();
+  state.dashboard.cardStates[card.id] = await refreshCard({ dashboard, card, workspace: state.workspace, loadedTables: state.loadedTables, bypassCache: true });
+  notify();
+  await renderDashboardCharts();
+}
+
+function exportActiveDashboard() {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  const pkg = exportDashboardPackage(state.workspace, dashboard.id);
+  state.dashboard.lastExportAt = pkg.exportedBy.exportedAt;
+  downloadJson(`${safeFileName(dashboard.name)}_dashboard.json`, pkg);
+  notify();
+}
+
+async function importDashboardFromFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const pkg = JSON.parse(await file.text());
+    updateWorkspace((workspace) => importDashboardPackage(workspace, pkg));
+    addStatus("dashboard", "import", `Imported dashboard package ${file.name}.`);
+  } catch (error) {
+    state.dashboard.lastError = error.message;
+    addError("dashboard", "import", error);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function snapshotActiveDashboard() {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  const html = createSnapshotHtml({ dashboard, cardStates: state.dashboard.cardStates, includeSql: true });
+  state.dashboard.lastSnapshotAt = new Date().toISOString();
+  const blob = new Blob([html], { type: "text/html" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${safeFileName(dashboard.name)}_snapshot.html`;
+  anchor.click();
+  URL.revokeObjectURL(url);
+  notify();
+}
+
+function copyDeploymentInfo() {
+  copyText(JSON.stringify({
+    appVersion: APP_VERSION,
+    buildDate: BUILD_DATE,
+    workspaceId: state.workspace.id,
+    activeDashboardId: state.workspace.active.dashboardId,
+    url: location.href,
+  }, null, 2)).catch((error) => addError("ui", "copy-deployment-info", error));
+}
+
+function downloadJson(filename, payload) {
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "application/json" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
+}
+
+function safeFileName(name) {
+  return String(name || "dashboard").replace(/[^a-z0-9]+/gi, "_").toLowerCase();
 }
 
 function syncAiSettingsToUi() {
@@ -642,6 +905,52 @@ async function runSelfTest() {
     const workspace = createWorkspace();
     addAiHistory(workspace, { action: "self-test", model: "mock/model", apiKey: "secret" });
     if (JSON.stringify(workspace.aiHistory).includes("secret")) throw new Error("Secret leaked to history.");
+  });
+  await step("Create temporary dashboard", () => {
+    const workspace = createWorkspace();
+    const query = addOrUpdateQuery(workspace, { id: "query_dash_self", name: "Dash Q", sql: "SELECT x, y FROM qv_self_test", sourceTables: ["qv_self_test"] });
+    const viz = addOrUpdateVisualization(workspace, { id: "viz_dash_self", name: "Dash V", queryId: query.id, spec: validSpec });
+    const dashboard = addDashboard(workspace, createDashboard({ id: "dashboard_self", name: "Self-test dashboard" }));
+    addCard(dashboard, viz.id);
+    addCard(dashboard, viz.id);
+    if (dashboard.layout.length !== 2) throw new Error("Dashboard cards were not added.");
+  });
+  await step("Validate dashboard layout", () => {
+    const workspace = createWorkspace();
+    const query = addOrUpdateQuery(workspace, { id: "query_dash_self", sql: "SELECT x, y FROM qv_self_test", sourceTables: ["qv_self_test"] });
+    const viz = addOrUpdateVisualization(workspace, { id: "viz_dash_self", name: "Dash V", queryId: query.id, spec: validSpec });
+    const dashboard = addDashboard(workspace, createDashboard());
+    addCard(dashboard, viz.id);
+    if (!dashboard.layout[0] || dashboard.layout[0].width > 12) throw new Error("Invalid layout.");
+  });
+  await step("Apply category filter with safe SQL wrapping", () => {
+    const filtered = validateSqlSafety("SELECT x, y FROM qv_self_test", ["qv_self_test"]);
+    if (!filtered.ok) throw new Error("Base SQL failed safety.");
+  });
+  await step("Export dashboard package", () => {
+    const workspace = createWorkspace();
+    const query = addOrUpdateQuery(workspace, { id: "query_dash_self", sql: "SELECT x, y FROM qv_self_test", sourceTables: ["qv_self_test"] });
+    const viz = addOrUpdateVisualization(workspace, { id: "viz_dash_self", name: "Dash V", queryId: query.id, spec: validSpec });
+    const dashboard = addDashboard(workspace, createDashboard());
+    addCard(dashboard, viz.id);
+    const pkg = exportDashboardPackage(workspace, dashboard.id);
+    if (pkg.exportedBy.appVersion !== APP_VERSION || pkg.visualizations.length !== 1) throw new Error("Dashboard package invalid.");
+  });
+  await step("Generate static dashboard snapshot", () => {
+    const dashboard = createDashboard({ name: "Snapshot self-test" });
+    const html = createSnapshotHtml({ dashboard });
+    if (!html.includes(APP_VERSION)) throw new Error("Snapshot missing version.");
+  });
+  await step("Parse valid AI dashboard proposal", () => {
+    const workspace = createWorkspace();
+    const query = addOrUpdateQuery(workspace, { id: "query_dash_self", sql: "SELECT x, y FROM qv_self_test", sourceTables: ["qv_self_test"] });
+    addOrUpdateVisualization(workspace, { id: "viz_dash_self", name: "Dash V", queryId: query.id, spec: validSpec });
+    const result = validateAiResponse({ contract: AI_CONTRACTS.dashboard, contractVersion: 1, title: "Dash", description: "", audience: "", proposals: [{ type: "existing-visualization", visualizationId: "viz_dash_self", layout: { width: 6, height: 4 } }], filters: [], narrativeOrder: [], assumptions: [], cautions: [] }, { expectedContract: AI_CONTRACTS.dashboard, knownTables: ["qv_self_test"], dataset: workspace });
+    if (!result.valid) throw new Error(result.errors[0]?.message || "AI dashboard invalid.");
+  });
+  await step("Reject unsafe AI dashboard proposal", () => {
+    const result = validateAiResponse({ contract: AI_CONTRACTS.dashboard, contractVersion: 1, title: "Dash", proposals: [{ type: "new-visualization", sql: "DROP TABLE qv_self_test", layout: { width: 6, height: 4 } }], filters: [], narrativeOrder: [], assumptions: [], cautions: [] }, { expectedContract: AI_CONTRACTS.dashboard, knownTables: ["qv_self_test"], dataset: createWorkspace() });
+    if (result.valid) throw new Error("Unsafe AI dashboard accepted.");
   });
   await step("Footer version matches APP_VERSION", () => {
     if (!elements().footerVersion.textContent.includes(APP_VERSION)) throw new Error("Footer version mismatch.");

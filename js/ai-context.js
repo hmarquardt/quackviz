@@ -36,6 +36,21 @@ export function buildAiContext({ workspace, selectedTableNames, result = null, r
     },
     tables,
     deterministicRecommendations: recommendations,
+    savedVisualizations: (workspace.visualizations || []).map((viz) => ({
+      id: viz.id,
+      name: viz.name,
+      queryId: viz.queryId,
+      chartType: viz.spec?.type,
+      title: viz.spec?.title,
+      sourceTables: (workspace.queries || []).find((query) => query.id === viz.queryId)?.sourceTables || [],
+      createdBy: viz.provenance?.createdBy || "user",
+    })),
+    dashboards: (workspace.dashboards || []).map((dashboard) => ({
+      id: dashboard.id,
+      name: dashboard.name,
+      cardCount: dashboard.layout?.length || 0,
+      filterCount: dashboard.filters?.length || 0,
+    })),
   };
   if (result && settings.includeResultSummary) context.currentResult = summarizeResult(result, settings.maxResultRows || 25);
   return { context, warnings: context.privacy.warning ? [context.privacy.warning] : [], sensitiveColumns };

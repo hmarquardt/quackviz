@@ -28,6 +28,15 @@ export const state = {
   currentResult: null,
   currentSpec: null,
   currentOption: null,
+  dashboard: {
+    selectedCardId: null,
+    cardStates: {},
+    refreshing: false,
+    lastRefresh: null,
+    lastExportAt: null,
+    lastSnapshotAt: null,
+    lastError: null,
+  },
   ai: {
     apiKeyConfigured: false,
     modelList: [],

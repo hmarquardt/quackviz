@@ -1,75 +1,111 @@
-import { createWorkspace, state } from "./state.js";
+import { STORAGE } from "./constants.js";
+import { createWorkspace, hydrateWorkspace, serializeWorkspace } from "./workspace.js";
+import { debounce } from "./utils.js";
 
-const DB_NAME = "quackviz";
-const STORE = "workspaces";
-const KEY = "active";
-const SETTINGS_KEY = "quackviz.settings";
-const OPENROUTER_KEY = "quackviz.openrouter.key";
-
-function openStore(mode = "readonly") {
+function openDatabase() {
   return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onupgradeneeded = () => request.result.createObjectStore(STORE);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => {
-      const tx = request.result.transaction(STORE, mode);
-      resolve({ db: request.result, tx, store: tx.objectStore(STORE) });
+    if (!("indexedDB" in window)) {
+      reject(new Error("IndexedDB is not available in this browser."));
+      return;
+    }
+    const request = indexedDB.open(STORAGE.dbName, STORAGE.dbVersion);
+    request.onupgradeneeded = () => {
+      const db = request.result;
+      if (!db.objectStoreNames.contains(STORAGE.workspaceStore)) db.createObjectStore(STORAGE.workspaceStore, { keyPath: "id" });
+      if (!db.objectStoreNames.contains(STORAGE.metaStore)) db.createObjectStore(STORAGE.metaStore);
     };
+    request.onerror = () => reject(request.error);
+    request.onsuccess = () => resolve(request.result);
   });
+}
+
+async function withStore(storeName, mode, fn) {
+  const db = await openDatabase();
+  try {
+    const tx = db.transaction(storeName, mode);
+    const store = tx.objectStore(storeName);
+    const result = await fn(store);
+    await new Promise((resolve, reject) => {
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+      tx.onabort = () => reject(tx.error || new Error("IndexedDB transaction aborted."));
+    });
+    return result;
+  } finally {
+    db.close();
+  }
+}
+
+function requestResult(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+export async function initializeStorage() {
+  const db = await openDatabase();
+  db.close();
+  return { indexedDb: "available", dbName: STORAGE.dbName, version: STORAGE.dbVersion };
 }
 
 export async function loadWorkspace() {
-  try {
-    const { db, store } = await openStore();
-    const value = await new Promise((resolve, reject) => {
-      const req = store.get(KEY);
-      req.onsuccess = () => resolve(req.result);
-      req.onerror = () => reject(req.error);
-    });
-    db.close();
-    state.diagnostics.indexedDb = "available";
-    state.workspace = value || createWorkspace();
-  } catch (error) {
-    state.diagnostics.indexedDb = `error: ${error.message}`;
-    state.workspace = createWorkspace();
-  }
-  state.profiles = Object.fromEntries((state.workspace.dataSources || []).filter((source) => source.profile).map((source) => [source.tableName, source.profile]));
-  state.tables = (state.workspace.dataSources || []).map((source) => ({ name: source.tableName, rowCount: source.rowCount, columns: source.columns }));
-  const settings = JSON.parse(localStorage.getItem(SETTINGS_KEY) || "{}");
-  state.workspace.settings = { ...state.workspace.settings, ...settings };
-  return state.workspace;
+  const activeId = await withStore(STORAGE.metaStore, "readonly", (store) => requestResult(store.get(STORAGE.activeWorkspaceKey))).catch(() => null);
+  if (!activeId) return createWorkspace();
+  const stored = await withStore(STORAGE.workspaceStore, "readonly", (store) => requestResult(store.get(activeId)));
+  if (!stored) return createWorkspace();
+  return hydrateWorkspace(stored);
 }
 
-export async function saveWorkspace() {
-  localStorage.setItem(SETTINGS_KEY, JSON.stringify(state.workspace.settings || {}));
-  const { db, tx, store } = await openStore("readwrite");
-  await new Promise((resolve, reject) => {
-    const req = store.put(state.workspace, KEY);
-    req.onsuccess = resolve;
-    req.onerror = () => reject(req.error);
+export async function saveWorkspace(workspace) {
+  const serialized = serializeWorkspace(workspace);
+  await withStore(STORAGE.workspaceStore, "readwrite", (store) => requestResult(store.put(serialized)));
+  await withStore(STORAGE.metaStore, "readwrite", (store) => requestResult(store.put(serialized.id, STORAGE.activeWorkspaceKey)));
+  return serialized;
+}
+
+export const saveWorkspaceDebounced = debounce((workspace, onError) => {
+  saveWorkspace(workspace).catch((error) => {
+    if (onError) onError(error);
   });
-  await new Promise((resolve, reject) => {
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
-  db.close();
-}
-
-export function getApiKey() {
-  return localStorage.getItem(OPENROUTER_KEY) || "";
-}
-
-export function setApiKey(value) {
-  if (value) localStorage.setItem(OPENROUTER_KEY, value);
-  else localStorage.removeItem(OPENROUTER_KEY);
-}
+}, 350);
 
 export async function resetStoredWorkspace() {
-  const { db, tx, store } = await openStore("readwrite");
-  store.delete(KEY);
-  await new Promise((resolve, reject) => {
-    tx.oncomplete = resolve;
-    tx.onerror = () => reject(tx.error);
-  });
-  db.close();
+  await withStore(STORAGE.workspaceStore, "readwrite", (store) => requestResult(store.clear()));
+  await withStore(STORAGE.metaStore, "readwrite", (store) => requestResult(store.delete(STORAGE.activeWorkspaceKey)));
+}
+
+export async function saveTemporaryWorkspace(workspace) {
+  await saveWorkspace(workspace);
+  return loadWorkspace();
+}
+
+export function loadThemePreference() {
+  return localStorage.getItem(STORAGE.themePreferenceKey);
+}
+
+export function saveThemePreference(theme) {
+  if (theme) localStorage.setItem(STORAGE.themePreferenceKey, theme);
+  else localStorage.removeItem(STORAGE.themePreferenceKey);
+}
+
+export function getOpenRouterApiKey() {
+  return localStorage.getItem(STORAGE.openRouterApiKey) || "";
+}
+
+export function setOpenRouterApiKey(value) {
+  if (value) localStorage.setItem(STORAGE.openRouterApiKey, value);
+  else localStorage.removeItem(STORAGE.openRouterApiKey);
+}
+
+export function loadAiModelCache() {
+  try {
+    return JSON.parse(localStorage.getItem(STORAGE.aiModelCache) || "null");
+  } catch {
+    return null;
+  }
+}
+
+export function saveAiModelCache(cache) {
+  localStorage.setItem(STORAGE.aiModelCache, JSON.stringify(cache));
 }

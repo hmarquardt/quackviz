@@ -1,77 +1,118 @@
-import { nowIso, uid } from "./utils.js";
+import { createWorkspace } from "./workspace.js";
+import { nowIso } from "./utils.js";
 
-export function createWorkspace() {
-  const id = uid("workspace");
-  return {
-    id,
-    version: 1,
-    name: "QuackViz workspace",
-    dataSources: [],
-    queries: [],
-    visualizations: [],
-    dashboards: [],
-    active: {
-      dataSourceId: null,
-      queryId: null,
-      visualizationId: null,
-      dashboardId: null,
-    },
-    settings: {
-      theme: "dark",
-      ai: {
-        enabled: false,
-        model: "openai/gpt-4.1-mini",
-        systemPrompt: "",
-        maxSampleRows: 0,
-        maxResultRows: 500,
-      },
-    },
-    createdAt: nowIso(),
-    updatedAt: nowIso(),
-  };
-}
+const listeners = new Set();
 
 export const state = {
   workspace: createWorkspace(),
-  tables: [],
-  profiles: {},
-  currentResult: { queryId: null, rows: [], columns: [], runtimeMs: null },
-  currentSpec: null,
-  diagnostics: {
-    duckdbVersion: "unknown",
-    echartsVersion: "unknown",
-    opfs: false,
-    indexedDb: "unknown",
-    lastSqlError: "",
-    lastAiError: "",
-    selfTest: "not run",
+  dbStatus: {
+    initialized: false,
+    initializing: false,
+    connection: "not-started",
+    selectedBundle: null,
+    packageVersion: null,
+    runtimeVersion: "unknown",
+    error: null,
   },
+  storageStatus: {
+    indexedDb: "unknown",
+    lastSavedAt: null,
+    lastError: null,
+  },
+  rendererStatus: {
+    echartsPackageVersion: null,
+    echartsRuntimeVersion: "not loaded",
+    error: null,
+  },
+  loadedTables: new Set(),
+  currentResult: null,
+  currentSpec: null,
+  currentOption: null,
+  ai: {
+    apiKeyConfigured: false,
+    modelList: [],
+    modelListRefreshedAt: null,
+    modelListError: null,
+    selectedTables: [],
+    contextPreview: "",
+    contextWarnings: [],
+    currentResult: null,
+    proposals: [],
+    selectedProposalId: null,
+    lastDiagnostics: null,
+    lastParseError: null,
+    lastSqlSafetyError: null,
+    lastRepairAttemptCount: 0,
+  },
+  activeTab: "data",
+  statuses: [],
+  errors: [],
+  selfTest: [],
 };
 
-export function touchWorkspace() {
+export function subscribe(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
+}
+
+export function notify() {
+  for (const listener of listeners) listener(state);
+}
+
+export function setWorkspace(workspace) {
+  state.workspace = workspace;
+  notify();
+}
+
+export function updateWorkspace(mutator) {
+  mutator(state.workspace);
   state.workspace.updatedAt = nowIso();
+  notify();
 }
 
-export function upsertQuery(query) {
-  const index = state.workspace.queries.findIndex((item) => item.id === query.id);
-  if (index >= 0) state.workspace.queries[index] = query;
-  else state.workspace.queries.push(query);
-  state.workspace.active.queryId = query.id;
-  touchWorkspace();
+export function setActive(partial) {
+  updateWorkspace((workspace) => {
+    workspace.active = { ...workspace.active, ...partial };
+  });
 }
 
-export function upsertVisualization(viz) {
-  const index = state.workspace.visualizations.findIndex((item) => item.id === viz.id);
-  if (index >= 0) state.workspace.visualizations[index] = viz;
-  else state.workspace.visualizations.push(viz);
-  state.workspace.active.visualizationId = viz.id;
-  touchWorkspace();
+export function setCurrentResult(result) {
+  state.currentResult = result;
+  notify();
 }
 
-export function addDataSource(source) {
-  const existing = state.workspace.dataSources.find((item) => item.tableName === source.tableName);
-  if (!existing) state.workspace.dataSources.push(source);
-  state.workspace.active.dataSourceId = source.id;
-  touchWorkspace();
+export function setCurrentSpec(spec) {
+  state.currentSpec = spec;
+  notify();
 }
 
+export function setCurrentOption(option) {
+  state.currentOption = option;
+  notify();
+}
+
+export function addStatus(source, operation, message) {
+  state.statuses.unshift({ source, operation, message, timestamp: nowIso() });
+  state.statuses = state.statuses.slice(0, 20);
+  notify();
+}
+
+export function addError(source, operation, error) {
+  const item = {
+    source,
+    operation,
+    message: error?.message || String(error),
+    detail: error?.stack || "",
+    timestamp: nowIso(),
+  };
+  state.errors.unshift(item);
+  state.errors = state.errors.slice(0, 20);
+  notify();
+  return item;
+}
+
+export function markTableLoaded(tableName, loaded = true) {
+  if (loaded) state.loadedTables.add(tableName);
+  else state.loadedTables.delete(tableName);
+  notify();
+}

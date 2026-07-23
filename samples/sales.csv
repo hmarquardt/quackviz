@@ -1,20 +1,121 @@
-order_date,category,region,product,revenue,profit,quantity,discount
-2026-01-05,Hardware,North,Keyboard,1200,310,12,0.05
-2026-01-11,Hardware,South,Monitor,3400,720,10,0.10
-2026-01-21,Software,West,Analytics Pro,5100,2900,17,0.00
-2026-02-03,Services,East,Implementation,7300,2400,1,0.00
-2026-02-14,Hardware,North,Dock,1800,420,15,0.08
-2026-02-22,Software,South,Backup Suite,2600,1300,8,0.00
-2026-03-07,Services,West,Training,3900,1600,3,0.00
-2026-03-19,Hardware,East,Monitor,4100,880,12,0.06
-2026-03-25,Software,North,Analytics Pro,6200,3500,20,0.00
-2026-04-04,Hardware,West,Keyboard,1400,360,14,0.04
-2026-04-16,Services,South,Support,2200,900,2,0.00
-2026-04-28,Software,East,Backup Suite,3100,1550,9,0.00
-2026-05-09,Hardware,North,Monitor,4500,930,13,0.05
-2026-05-18,Services,West,Implementation,8100,2800,1,0.00
-2026-05-29,Software,South,Analytics Pro,6800,3800,21,0.00
-2026-06-06,Hardware,East,Dock,2100,500,17,0.07
-2026-06-15,Services,North,Training,4200,1700,4,0.00
-2026-06-26,Software,West,Backup Suite,3500,1800,10,0.00
-
+order_date,region,category,product,quantity,revenue,cost,profit
+2026-01-03,North,Hardware,Keyboard,1,63.92,40.32,23.6
+2026-01-06,West,Software,Analytics Pro,8,1738.27,610.27,1128.0
+2026-01-09,East,Services,Implementation,3,5738.04,4242.96,1495.08
+2026-01-12,South,Accessories,Cable Kit,22,516.91,334.62,182.29
+2026-01-15,North,Hardware,Monitor,5,1460.72,1212.6,248.12
+2026-01-13,West,Software,Backup Suite,12,1790.91,781.2,1009.71
+2026-01-16,East,Services,Training,2,1995.28,1302.96,692.32
+2026-01-19,East,Accessories,Webcam,2,225.27,157.44,67.83
+2026-01-22,South,Hardware,Dock,9,1226.18,924.21,301.97
+2026-01-25,North,Software,Data Sync,16,1968.56,733.06,1235.5
+2026-01-23,West,Services,Support Retainer,1,1427.38,973.44,453.94
+2026-01-26,East,Accessories,Headset,6,436.76,352.94,83.82
+2026-01-29,South,Hardware,Laptop Stand,13,648.94,423.15,225.79
+2026-02-01,North,Software,Forecast Lite,20,1688.57,1840.54,-151.97
+2026-02-04,North,Services,Data Cleanup,5,5384.5,4176.0,1208.5
+2026-02-02,West,Accessories,Travel Hub,10,692.81,479.22,213.59
+2026-02-05,East,Hardware,Keyboard,17,1068.84,711.14,357.7
+2026-02-08,South,Software,Analytics Pro,24,5160.04,1898.21,3261.83
+2026-02-11,North,Services,Implementation,4,8619.16,5861.76,2757.4
+2026-02-14,West,Accessories,Cable Kit,14,315.71,220.5,95.21
+2026-02-12,East,Hardware,Monitor,21,6881.07,5270.58,1610.49
+2026-02-15,East,Software,Backup Suite,4,670.89,238.08,432.81
+2026-02-18,South,Services,Training,3,2487.24,1789.74,697.5
+2026-02-21,North,Accessories,Webcam,18,1972.71,1470.1,502.61
+2026-02-24,West,Hardware,Dock,1,133.07,106.47,26.6
+2026-02-22,East,Software,Data Sync,8,845.86,379.78,466.08
+2026-02-25,South,Services,Support Retainer,2,2876.8,2016.0,860.8
+2026-02-28,North,Accessories,Headset,22,1790.03,2130.14,-340.11
+2026-03-03,North,Hardware,Laptop Stand,5,241.88,148.8,93.08
+2026-03-06,West,Software,Forecast Lite,12,1140.08,445.97,694.11
+2026-03-04,East,Services,Data Cleanup,1,1200.6,866.52,334.08
+2026-03-07,South,Accessories,Travel Hub,2,133.94,99.37,34.57
+2026-03-10,North,Hardware,Keyboard,9,635.19,390.1,245.09
+2026-03-13,West,Software,Analytics Pro,16,3320.83,1310.4,2010.43
+2026-03-16,East,Services,Implementation,5,9225.04,7582.8,1642.24
+2026-03-14,East,Accessories,Cable Kit,6,134.93,86.4,48.53
+2026-03-17,South,Hardware,Monitor,13,3550.83,2987.79,563.04
+2026-03-20,North,Software,Backup Suite,20,3273.6,1235.04,2038.56
+2026-03-23,West,Services,Training,4,3742.62,2474.16,1268.46
+2026-03-26,East,Accessories,Webcam,10,1053.63,846.24,207.39
+2026-03-24,South,Hardware,Dock,17,2541.41,1874.25,667.16
+2026-03-27,North,Software,Data Sync,24,2856.38,1179.07,1677.31
+2026-03-30,North,Services,Support Retainer,3,4138.15,2764.8,1373.35
+2026-04-02,West,Accessories,Headset,14,1318.24,780.44,537.8
+2026-04-05,East,Hardware,Laptop Stand,21,1012.66,1053.17,-40.51
+2026-04-03,South,Software,Forecast Lite,4,318.68,154.13,164.55
+2026-04-06,North,Services,Data Cleanup,2,2342.55,1795.68,546.87
+2026-04-09,West,Accessories,Travel Hub,18,1167.28,926.1,241.18
+2026-04-12,East,Hardware,Keyboard,1,59.36,44.86,14.5
+2026-04-15,East,Software,Analytics Pro,8,1871.71,599.04,1272.67
+2026-04-13,South,Services,Implementation,1,2060.43,1388.76,671.67
+2026-04-16,North,Accessories,Cable Kit,22,479.04,328.68,150.36
+2026-04-19,West,Hardware,Monitor,5,1569.65,1191.45,378.2
+2026-04-22,East,Software,Backup Suite,12,1925.43,767.81,1157.62
+2026-04-25,South,Services,Training,5,5243.0,3202.5,2040.5
+2026-04-23,North,Accessories,Webcam,2,205.39,175.15,30.24
+2026-04-26,North,Hardware,Dock,9,1119.3,907.2,212.1
+2026-04-29,West,Software,Data Sync,16,1854.72,719.81,1134.91
+2026-05-02,East,Services,Support Retainer,4,5394.29,3824.64,1569.65
+2026-05-05,South,Accessories,Headset,6,471.4,346.79,124.61
+2026-05-03,North,Hardware,Laptop Stand,13,705.51,415.9,289.61
+2026-05-06,West,Software,Forecast Lite,20,1837.49,798.0,1039.49
+2026-05-09,East,Services,Data Cleanup,3,3479.62,2787.48,692.14
+2026-05-12,East,Accessories,Travel Hub,10,729.13,470.4,258.73
+2026-05-15,South,Hardware,Keyboard,17,1124.14,698.29,425.85
+2026-05-13,North,Software,Analytics Pro,24,5423.62,1864.51,3559.11
+2026-05-16,West,Services,Implementation,2,4011.92,2879.76,1132.16
+2026-05-19,East,Accessories,Cable Kit,14,294.59,216.72,77.87
+2026-05-22,South,Hardware,Monitor,21,5534.02,5181.75,352.27
+2026-05-25,North,Software,Backup Suite,4,626.76,264.86,361.9
+2026-05-23,North,Services,Training,1,894.39,585.6,308.79
+2026-05-26,West,Accessories,Webcam,18,1830.71,2178.54,-347.83
+2026-05-29,East,Hardware,Dock,1,140.23,104.58,35.65
+2026-06-01,South,Software,Data Sync,8,890.78,373.15,517.63
+2026-06-04,North,Services,Support Retainer,5,7569.0,4953.6,2615.4
+2026-06-02,West,Accessories,Headset,22,1944.03,1316.7,627.33
+2026-06-05,East,Hardware,Laptop Stand,5,260.01,165.54,94.47
+2026-06-08,East,Software,Forecast Lite,12,1071.6,437.76,633.84
+2026-06-11,South,Services,Data Cleanup,4,4526.75,3403.44,1123.31
+2026-06-14,North,Accessories,Travel Hub,2,125.19,97.61,27.58
+2026-06-12,West,Hardware,Keyboard,9,599.15,383.29,215.86
+2026-06-15,East,Software,Analytics Pro,16,3504.54,1287.94,2216.6
+2026-06-18,South,Services,Implementation,3,5837.04,4473.0,1364.04
+2026-06-21,North,Accessories,Cable Kit,6,142.19,96.12,46.07
+2026-06-24,North,Hardware,Monitor,13,3822.54,2932.8,889.74
+2026-06-22,West,Software,Backup Suite,20,3031.78,1212.72,1819.06
+2026-06-25,East,Services,Training,2,2009.57,1215.12,794.45
+2026-06-28,South,Accessories,Webcam,10,1132.06,831.48,300.58
+2026-07-01,North,Hardware,Dock,17,2039.05,1842.12,196.93
+2026-07-04,West,Software,Data Sync,24,2662.3,1159.2,1503.1
+2026-07-02,East,Services,Support Retainer,1,1260.63,1025.28,235.35
+2026-07-05,East,Accessories,Headset,14,1206.13,766.08,440.05
+2026-07-08,South,Hardware,Laptop Stand,21,1068.68,636.68,432.0
+2026-07-11,North,Software,Forecast Lite,4,343.71,151.39,192.32
+2026-07-14,West,Services,Data Cleanup,5,6362.5,4410.9,1951.6
+2026-07-12,East,Accessories,Travel Hub,18,1269.37,910.22,359.15
+2026-07-15,South,Hardware,Keyboard,1,63.89,44.1,19.79
+2026-07-18,North,Software,Analytics Pro,8,2029.44,666.43,1363.01
+2026-07-21,North,Services,Implementation,4,8945.2,10197.53,-1252.33
+2026-07-24,West,Accessories,Cable Kit,22,436.76,322.74,114.02
+2026-07-22,East,Hardware,Monitor,5,1432.84,1170.3,262.54
+2026-07-25,South,Software,Backup Suite,12,1759.67,754.42,1005.25
+2026-07-28,North,Services,Training,3,2532.87,1888.56,644.31
+2026-07-31,West,Accessories,Webcam,2,221.32,172.2,49.12
+2026-08-03,East,Hardware,Dock,9,1206.6,1009.26,197.34
+2026-08-01,East,Software,Data Sync,16,1720.01,706.56,1013.45
+2026-08-04,South,Services,Support Retainer,2,2900.2,1877.76,1022.44
+2026-08-07,North,Accessories,Headset,6,507.13,340.63,166.5
+2026-08-10,West,Hardware,Laptop Stand,13,742.01,408.64,333.37
+2026-08-13,East,Software,Forecast Lite,20,1931.35,784.32,1147.03
+2026-08-11,South,Services,Data Cleanup,1,1057.5,913.5,144.0
+2026-08-14,North,Accessories,Travel Hub,10,686.16,523.32,162.84
+2026-08-17,North,Hardware,Keyboard,17,1060.86,685.44,375.42
+2026-08-20,West,Software,Analytics Pro,24,5075.14,5531.9,-456.76
+2026-08-23,East,Services,Implementation,5,10912.0,7071.6,3840.4
+2026-08-21,South,Accessories,Cable Kit,14,320.8,212.94,107.86
+2026-08-24,North,Hardware,Monitor,21,5964.46,5092.92,871.54
+2026-08-27,West,Software,Backup Suite,4,660.05,260.4,399.65
+2026-08-30,East,Services,Training,4,3765.08,2605.92,1159.16
+2026-04-20,East,Accessories,Webcam,18,1925.43,1416.96,508.47

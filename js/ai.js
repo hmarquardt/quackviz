@@ -1,43 +1,68 @@
-import { validateAnalyticalSql } from "./query.js";
-import { validateVisualizationSpec } from "./viz-spec.js";
+import { OPENROUTER } from "./constants.js";
+import { buildSystemPrompt, actionContract } from "./ai-contracts.js";
+import { requestOpenRouterJson, fetchOpenRouterModels } from "./ai-client.js";
+import { buildAiContext } from "./ai-context.js";
+import { parseAiJson, validateAiResponse } from "./ai-validate.js";
+import { createProposalState } from "./ai-proposals.js";
 
-const OPENROUTER = "https://openrouter.ai/api/v1";
+export { fetchOpenRouterModels };
 
-export async function fetchModels(apiKey) {
-  const response = await fetch(`${OPENROUTER}/models`, { headers: { Authorization: `Bearer ${apiKey}` } });
-  if (!response.ok) throw new Error(`OpenRouter models request failed: ${response.status}`);
-  return (await response.json()).data || [];
-}
-
-export async function requestAiProposals({ apiKey, model, systemPrompt, workspace, tables, profiles }) {
-  const prompt = `Return strict JSON only matching the QuackViz proposal contract. Use SELECT or WITH SQL only. Tables: ${JSON.stringify(tables)} Profiles: ${JSON.stringify(profiles)} Workspace queries: ${JSON.stringify(workspace.queries.map((q) => ({ id: q.id, name: q.name, sql: q.sql })))}.`;
-  const response = await fetch(`${OPENROUTER}/chat/completions`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}`, "HTTP-Referer": location.href, "X-Title": "QuackViz" },
-    body: JSON.stringify({
-      model,
-      messages: [
-        { role: "system", content: systemPrompt || "You propose browser-local DuckDB SQL and QuackViz visualization specs. Return JSON only. Never include functions, HTML, JavaScript, or raw ECharts options." },
-        { role: "user", content: prompt },
-      ],
-      response_format: { type: "json_object" },
-    }),
+export async function runAiAction({ apiKey, action, question, workspace, selectedTables, currentResult, currentSpec, recommendations, settings, abortSignal = null }) {
+  if (!settings.enabled) throw categorized("AI_DISABLED", "AI is disabled.");
+  if (!apiKey) throw categorized("AI_MISSING_API_KEY", "OpenRouter API key is required.");
+  const context = buildAiContext({ workspace, selectedTableNames: selectedTables, result: currentResult, recommendations, settings });
+  const expectedContract = actionContract(action);
+  const messages = [
+    { role: "system", content: buildSystemPrompt(settings.customSystemPrompt) },
+    {
+      role: "user",
+      content: JSON.stringify({
+        action,
+        expectedContract,
+        question: question || "",
+        context: context.context,
+        currentVisualizationSpec: currentSpec || null,
+      }),
+    },
+  ];
+  const response = await requestOpenRouterJson({
+    apiKey,
+    model: settings.model,
+    messages,
+    temperature: settings.temperature,
+    maxTokens: settings.maxOutputTokens,
+    timeoutMs: settings.timeoutMs,
+    abortSignal,
   });
-  if (!response.ok) throw new Error(`OpenRouter request failed: ${response.status}`);
-  return validateAiProposal(JSON.parse((await response.json()).choices?.[0]?.message?.content || "{}"));
-}
-
-export function validateAiProposal(payload) {
-  const errors = [];
-  if (!payload || typeof payload !== "object") errors.push("AI response was not an object.");
-  if (!Array.isArray(payload.visualizations)) errors.push("AI response must include visualizations array.");
-  for (const [index, viz] of (payload.visualizations || []).entries()) {
-    const sql = validateAnalyticalSql(viz.sql || "");
-    if (!sql.valid) errors.push(`Proposal ${index + 1} SQL: ${sql.errors.join(" ")}`);
-    const spec = validateVisualizationSpec({ ...(viz.spec || {}), dataset: { queryId: "pending" } });
-    if (!spec.valid) errors.push(`Proposal ${index + 1} spec: ${spec.errors.join(" ")}`);
+  const parsed = parseAiJson(response.content);
+  if (!parsed.ok) {
+    const error = categorized("AI_JSON_PARSE_FAILURE", parsed.error.message);
+    error.diagnostics = response.diagnostics;
+    throw error;
   }
-  if (errors.length) throw new Error(errors.join("\n"));
-  return payload;
+  const validation = validateAiResponse(parsed.value, { expectedContract, knownTables: selectedTables, dataset: currentResult });
+  const result = {
+    action,
+    provider: OPENROUTER.provider,
+    model: settings.model,
+    context,
+    raw: parsed.value,
+    validation,
+    usage: response.usage,
+    diagnostics: {
+      ...response.diagnostics,
+      parseSuccess: true,
+      contractValidationSuccess: validation.valid,
+      contractVersion: parsed.value.contractVersion,
+      proposalCount: validation.proposals?.length || 0,
+    },
+  };
+  if (expectedContract === "quackviz-ai-proposals") result.proposalState = createProposalState(validation);
+  return result;
 }
 
+function categorized(code, message) {
+  const error = new Error(message);
+  error.code = code;
+  return error;
+}

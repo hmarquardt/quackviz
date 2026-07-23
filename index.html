@@ -4,7 +4,6 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>QuackViz</title>
-    <link rel="icon" href='data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64"><rect width="64" height="64" rx="14" fill="%2311151b"/><path d="M14 36c0-12 9-22 21-22 8 0 15 4 18 11-5 1-9 4-11 9l10 6c-4 7-11 11-19 11-11 0-19-7-19-15z" fill="%232aa198"/><circle cx="36" cy="27" r="4" fill="white"/><path d="M43 34h14l-11 8z" fill="%23f5b642"/></svg>'>
     <link rel="stylesheet" href="css/app.css">
   </head>
   <body>
@@ -13,32 +12,29 @@
         <header class="brand">
           <div>
             <h1>QuackViz</h1>
-            <p>Local SQL visual analytics</p>
+            <p>Static DuckDB visual analytics</p>
           </div>
-          <button id="themeToggle" class="icon-button" title="Toggle theme">◐</button>
+          <select id="themeSelect" class="theme-select" aria-label="Theme">
+            <option value="system">System</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
         </header>
+
         <section class="panel">
-          <h2>Import</h2>
-          <div class="button-row">
-            <button id="loadSales">Sales sample</button>
-            <button id="loadTelemetry">Telemetry sample</button>
-          </div>
-          <label class="file-picker">
-            <span>Import CSV, JSON, NDJSON, Parquet</span>
-            <input id="fileInput" type="file" accept=".csv,.json,.ndjson,.parquet,.pq,application/json,text/csv">
-          </label>
+          <h2>Data Sources</h2>
+          <button id="loadSample" class="primary wide">Load sample sales data</button>
+          <div id="sourceList" class="object-list"></div>
         </section>
-        <section class="panel browser-section">
-          <h2>Tables</h2>
-          <div id="tableList" class="object-list empty">No tables loaded</div>
+
+        <section class="panel">
+          <h2>Saved Queries</h2>
+          <div id="savedQueries" class="object-list"></div>
         </section>
-        <section class="panel browser-section">
-          <h2>Saved queries</h2>
-          <div id="queryList" class="object-list empty">No saved queries</div>
-        </section>
-        <section class="panel browser-section">
-          <h2>Saved visualizations</h2>
-          <div id="vizList" class="object-list empty">No saved visualizations</div>
+
+        <section class="panel">
+          <h2>Saved Visualizations</h2>
+          <div id="savedVisualizations" class="object-list"></div>
         </section>
       </aside>
 
@@ -47,28 +43,30 @@
           <button class="tab active" data-tab="data">Data</button>
           <button class="tab" data-tab="sql">SQL</button>
           <button class="tab" data-tab="visualize">Visualize</button>
-          <button class="tab" data-tab="ai">AI proposals</button>
+          <button class="tab" data-tab="ai">AI</button>
           <button class="tab" data-tab="debug">Debug</button>
         </nav>
 
         <section id="dataTab" class="tab-panel active">
           <div class="section-head">
             <h2>Data</h2>
-            <span id="dataStatus" class="status">Initializing DuckDB...</span>
+            <span id="dataStatus" class="status">Starting...</span>
           </div>
-          <div id="schemaView" class="schema-grid empty-state">Load a sample or import a file.</div>
+          <div id="schemaView" class="schema-grid"></div>
         </section>
 
         <section id="sqlTab" class="tab-panel">
           <div class="section-head">
             <h2>SQL</h2>
             <div class="button-row">
+              <button id="clearSql">Clear</button>
               <button id="copySql">Copy SQL</button>
-              <button id="saveQuery">Save query</button>
+              <button id="saveQuery">Save Query</button>
               <button id="runSql" class="primary">Run</button>
             </div>
           </div>
-          <textarea id="sqlEditor" spellcheck="false">SELECT * FROM sales LIMIT 100;</textarea>
+          <label>Query name <input id="queryName" value="Monthly revenue"></label>
+          <textarea id="sqlEditor" spellcheck="false"></textarea>
           <div class="query-meta">
             <span id="queryRuntime">Runtime: -</span>
             <span id="queryRows">Rows: -</span>
@@ -80,91 +78,112 @@
         <section id="visualizeTab" class="tab-panel">
           <div class="section-head">
             <h2>Visualize</h2>
-            <div class="button-row">
-              <button id="exportPng">PNG</button>
-              <button id="exportSpec">Spec JSON</button>
-              <button id="saveViz" class="primary">Save visualization</button>
-            </div>
+            <span id="vizStatus" class="status">Run a query to build a visualization.</span>
           </div>
-          <div id="chart" class="chart" role="img" aria-label="Visualization canvas"></div>
-          <div id="recommendations" class="recommendations"></div>
+          <div id="chart" class="chart" role="img" aria-label="Visualization canvas">
+            <div class="empty-state">No chart to display.</div>
+          </div>
         </section>
 
         <section id="aiTab" class="tab-panel">
           <div class="section-head">
-            <h2>AI proposals</h2>
-            <div class="button-row">
-              <button id="refreshModels">Refresh models</button>
-              <button id="requestAi" class="primary">Generate proposals</button>
-            </div>
+            <h2>AI Copilot</h2>
+            <span id="aiStatus" class="status">AI disabled until configured.</span>
           </div>
-          <p class="notice">When enabled, schema and profile metadata are sent to OpenRouter. Raw rows are only included if configured below.</p>
-          <div id="aiCards" class="proposal-list empty-state">No proposals yet.</div>
+          <div class="ai-grid">
+            <section class="panel">
+              <h2>Ask</h2>
+              <label><input id="aiEnabled" type="checkbox"> Enable AI</label>
+              <label>OpenRouter API key <input id="openRouterKey" type="password" autocomplete="off" placeholder="Stored locally only"></label>
+              <div class="button-row">
+                <button id="refreshModels">Refresh models</button>
+                <button id="clearAiHistory" class="danger">Clear AI history</button>
+              </div>
+              <label>Model <select id="aiModel"></select></label>
+              <label>Action <select id="aiAction"></select></label>
+              <label>Selected tables <select id="aiTables" multiple size="4"></select></label>
+              <label>Question <textarea id="aiQuestion" placeholder="What should I look at?"></textarea></label>
+              <label>Context mode
+                <select id="aiContextMode">
+                  <option value="metadata">Metadata only</option>
+                  <option value="profiles">Metadata plus profile values</option>
+                  <option value="sampleRows">Include up to N sample rows</option>
+                </select>
+              </label>
+              <label>Temperature <input id="aiTemperature" type="number" min="0" max="1" step="0.1"></label>
+              <label>Max output tokens <input id="aiMaxTokens" type="number" min="256" max="8000" step="100"></label>
+              <label>Max sample rows <input id="aiMaxSampleRows" type="number" min="0" max="25"></label>
+              <label>Max result rows sent <input id="aiMaxResultRows" type="number" min="0" max="100"></label>
+              <label>Timeout ms <input id="aiTimeout" type="number" min="5000" max="120000" step="1000"></label>
+              <label>Custom system prompt <textarea id="aiSystemPrompt"></textarea></label>
+              <div id="aiSharingNotice" class="notice"></div>
+              <pre id="aiContextPreview" class="debug-report"></pre>
+              <div class="button-row">
+                <button id="previewAiContext">Refresh context preview</button>
+                <button id="runAi" class="primary">Run AI action</button>
+                <button id="cancelAi">Cancel</button>
+              </div>
+            </section>
+
+            <section class="panel">
+              <h2>Proposals</h2>
+              <div id="aiProposals" class="proposal-list"></div>
+            </section>
+
+            <section class="panel">
+              <h2>Current Analysis</h2>
+              <div id="aiCurrentAnalysis" class="ai-current"></div>
+            </section>
+
+            <section class="panel">
+              <h2>History</h2>
+              <div id="aiHistory" class="object-list"></div>
+            </section>
+          </div>
         </section>
 
         <section id="debugTab" class="tab-panel">
           <div class="section-head">
             <h2>Debug</h2>
             <div class="button-row">
-              <button id="copyDebug">Copy report</button>
-              <button id="downloadDebug">Download report</button>
+              <button id="copyDebug">Copy debug report</button>
+              <button id="resetWorkspace" class="danger">Reset workspace</button>
               <button id="selfTest" class="primary">Run self-test</button>
             </div>
           </div>
           <pre id="debugReport" class="debug-report"></pre>
+          <div id="selfTestResults" class="test-results"></div>
         </section>
       </main>
 
       <aside class="pane right-pane">
         <section class="panel">
-          <h2>Chart builder</h2>
-          <label>Data table <select id="builderTable"></select></label>
+          <h2>Visualization Builder</h2>
           <label>Chart type <select id="chartType"></select></label>
-          <label>X dimension <select id="xField"></select></label>
-          <label>Y measure <select id="yField"></select></label>
-          <label>Series/group <select id="seriesField"></select></label>
-          <label>Aggregation <select id="aggregation"></select></label>
-          <label>Sort <select id="sortMode"></select></label>
-          <label>Top N <input id="topN" type="number" min="0" max="500" value="25"></label>
-          <label>Date bucket <select id="dateBucket"></select></label>
+          <label>X field <select id="xField"></select></label>
+          <label>Y field <select id="yField"></select></label>
+          <label>Title <input id="vizTitle"></label>
           <div class="check-grid">
-            <label><input id="stacking" type="checkbox"> Stacking</label>
-            <label><input id="labels" type="checkbox"> Labels</label>
-            <label><input id="legend" type="checkbox" checked> Legend</label>
-            <label><input id="tooltip" type="checkbox" checked> Tooltip</label>
+            <label><input id="smoothLine" type="checkbox" checked> Smooth line</label>
+            <label><input id="showPoints" type="checkbox"> Show points</label>
             <label><input id="zoom" type="checkbox" checked> Zoom</label>
+            <label><input id="legend" type="checkbox"> Legend</label>
           </div>
-          <button id="applyBuilder" class="primary wide">Generate SQL and chart</button>
+          <button id="saveViz" class="primary wide">Save Visualization</button>
+          <div id="vizErrors" class="validation-list"></div>
         </section>
 
         <section class="panel">
-          <h2>SQL-backed spec</h2>
-          <textarea id="specEditor" spellcheck="false"></textarea>
-          <button id="applySpec" class="wide">Apply raw spec</button>
-        </section>
-
-        <section class="panel">
-          <h2>Workspace</h2>
-          <div class="button-row wrap">
-            <button id="newWorkspace">New</button>
-            <button id="exportWorkspace">Export</button>
-            <label class="compact-file">Import<input id="workspaceInput" type="file" accept=".json,application/json"></label>
-            <button id="resetWorkspace" class="danger">Reset</button>
+          <h2>Raw Spec</h2>
+          <div class="button-row">
+            <button id="copySpec">Copy spec</button>
+            <span id="specStatus" class="status">Spec version 1</span>
           </div>
-        </section>
-
-        <section class="panel">
-          <h2>AI settings</h2>
-          <label><input id="aiEnabled" type="checkbox"> Enable AI</label>
-          <label>OpenRouter API key <input id="apiKey" type="password" autocomplete="off"></label>
-          <label>Model <select id="aiModel"></select></label>
-          <label>Custom system prompt <textarea id="systemPrompt"></textarea></label>
-          <label>Max sample rows <input id="maxSampleRows" type="number" min="0" max="100" value="0"></label>
-          <label>Max result rows <input id="maxResultRows" type="number" min="10" max="10000" value="500"></label>
+          <textarea id="specEditor" spellcheck="false" readonly></textarea>
         </section>
       </aside>
     </div>
-    <script src="https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.min.js"></script>
+    <footer class="app-footer">QuackViz <span id="footerVersion"></span></footer>
     <script type="module" src="js/app.js"></script>
   </body>
 </html>

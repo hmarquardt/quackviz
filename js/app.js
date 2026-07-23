@@ -1,18 +1,667 @@
-import { initDuckDb } from "./db.js";
-import { loadWorkspace, saveWorkspace } from "./storage.js";
-import { bindUi } from "./ui.js";
+import { APP_VERSION, DEFAULT_SALES_SQL } from "./constants.js";
+import { runAiAction, fetchOpenRouterModels } from "./ai.js";
+import { buildAiContext, contextPreview } from "./ai-context.js";
+import { AI_CONTRACTS } from "./ai-contracts.js";
+import { makeInteraction } from "./ai-history.js";
+import { proposalToBuilderState, saveAiProposal, markRejected } from "./ai-proposals.js";
+import { explainSql, previewSql as previewAiSql, validateSqlSafety } from "./ai-sql-safety.js";
+import { validateAiResponse, validateRepair } from "./ai-validate.js";
+import { initializeDatabase, executeSql, tableExists } from "./db.js";
+import { loadIncludedSalesSample } from "./import.js";
+import { runQuery, buildQuerySaveInput } from "./query.js";
+import { addError, addStatus, markTableLoaded, notify, setActive, setCurrentOption, setCurrentResult, setCurrentSpec, setWorkspace, state, subscribe, updateWorkspace } from "./state.js";
+import { getOpenRouterApiKey, initializeStorage, loadAiModelCache, loadThemePreference, loadWorkspace, resetStoredWorkspace, saveAiModelCache, saveThemePreference, saveTemporaryWorkspace, saveWorkspace, saveWorkspaceDebounced, setOpenRouterApiKey } from "./storage.js";
+import { addAiHistory, addOrUpdateDataSource, addOrUpdateQuery, addOrUpdateVisualization, createWorkspace, hydrateWorkspace } from "./workspace.js";
+import { defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
+import { compileVisualizationSpec } from "./viz-compiler.js";
+import { renderVisualization, showEmpty } from "./viz-renderer.js";
+import { copyText, nowIso, uid } from "./utils.js";
+import { elements, getThemeTokens, initializeStaticControls, renderApp, renderSelfTest, seedDefaultSql, selectTab } from "./ui.js";
 
-window.addEventListener("error", (event) => {
-  console.error(event.error || event.message);
+let saveSuppressed = false;
+let currentAiAbortController = null;
+
+window.addEventListener("error", (event) => addError("app", "window-error", event.error || new Error(event.message)));
+window.addEventListener("unhandledrejection", (event) => addError("app", "unhandled-rejection", event.reason));
+
+initializeStaticControls();
+subscribe((next) => {
+  renderApp(next);
+  if (!saveSuppressed) {
+    saveWorkspaceDebounced(next.workspace, (error) => {
+      state.storageStatus.lastError = error.message;
+      addError("storage", "save-workspace", error);
+    });
+  }
 });
 
-await loadWorkspace();
-bindUi();
-try {
-  await initDuckDb();
-  await saveWorkspace();
-  document.getElementById("dataStatus").textContent = "DuckDB ready";
-} catch (error) {
-  document.getElementById("dataStatus").textContent = `DuckDB failed: ${error.message}`;
+await boot();
+
+async function boot() {
+  bindEvents();
+  try {
+    await initializeStorage();
+    state.storageStatus.indexedDb = "available";
+    const workspace = await loadWorkspace();
+    const preferredTheme = loadThemePreference();
+    if (preferredTheme) workspace.settings.theme = preferredTheme;
+    setWorkspace(workspace);
+  } catch (error) {
+    state.storageStatus.indexedDb = `error: ${error.message}`;
+    addError("storage", "restore-workspace", error);
+  }
+  applyTheme();
+  if (!elements().sqlEditor.value) seedDefaultSql();
+  state.ai.apiKeyConfigured = Boolean(getOpenRouterApiKey());
+  const modelCache = loadAiModelCache();
+  if (modelCache?.models) {
+    state.ai.modelList = modelCache.models;
+    state.ai.modelListRefreshedAt = modelCache.refreshedAt;
+  }
+  await restoreTableAvailability();
+  syncAiSettingsToUi();
+  refreshAiContextPreview();
+  notify();
+  initializeDatabase().then((status) => {
+    state.dbStatus = status;
+    if (status.error) addError("duckdb", "initialize", new Error(status.error));
+    notify();
+  });
 }
 
+function bindEvents() {
+  const el = elements();
+  document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => selectTab(button.dataset.tab)));
+  el.themeSelect.addEventListener("change", () => {
+    updateWorkspace((workspace) => { workspace.settings.theme = el.themeSelect.value; });
+    saveThemePreference(el.themeSelect.value);
+    applyTheme();
+    rebuildVisualization();
+  });
+  el.loadSample.addEventListener("click", loadSalesSample);
+  el.runSql.addEventListener("click", runEditorSql);
+  el.sqlEditor.addEventListener("keydown", (event) => {
+    if ((event.ctrlKey || event.metaKey) && event.key === "Enter") runEditorSql();
+  });
+  el.clearSql.addEventListener("click", () => { el.sqlEditor.value = ""; });
+  el.copySql.addEventListener("click", () => copyText(el.sqlEditor.value).catch((error) => addError("ui", "copy-sql", error)));
+  el.saveQuery.addEventListener("click", saveCurrentQuery);
+  for (const input of [el.chartType, el.xField, el.yField, el.vizTitle, el.smoothLine, el.showPoints, el.zoom, el.legend]) {
+    input.addEventListener("input", rebuildVisualization);
+    input.addEventListener("change", rebuildVisualization);
+  }
+  el.saveViz.addEventListener("click", saveCurrentVisualization);
+  el.copySpec.addEventListener("click", () => copyText(el.specEditor.value).catch((error) => addError("ui", "copy-spec", error)));
+  el.copyDebug.addEventListener("click", () => copyText(el.debugReport.textContent).catch((error) => addError("ui", "copy-debug", error)));
+  el.resetWorkspace.addEventListener("click", resetWorkspace);
+  el.selfTest.addEventListener("click", runSelfTest);
+  el.openRouterKey.addEventListener("change", () => {
+    setOpenRouterApiKey(el.openRouterKey.value);
+    el.openRouterKey.value = "";
+    state.ai.apiKeyConfigured = Boolean(getOpenRouterApiKey());
+    notify();
+  });
+  for (const input of [el.aiEnabled, el.aiModel, el.aiContextMode, el.aiTemperature, el.aiMaxTokens, el.aiMaxSampleRows, el.aiMaxResultRows, el.aiTimeout, el.aiSystemPrompt]) {
+    input.addEventListener("change", persistAiSettingsFromUi);
+  }
+  el.aiTables.addEventListener("change", () => {
+    state.ai.selectedTables = selectedAiTables();
+    refreshAiContextPreview();
+    notify();
+  });
+  el.previewAiContext.addEventListener("click", () => { refreshAiContextPreview(); notify(); });
+  el.refreshModels.addEventListener("click", refreshAiModels);
+  el.runAi.addEventListener("click", runSelectedAiAction);
+  el.cancelAi.addEventListener("click", () => {
+    if (currentAiAbortController) {
+      currentAiAbortController.abort();
+      addStatus("ai", "cancel", "AI request cancelled.");
+    }
+  });
+  el.clearAiHistory.addEventListener("click", () => updateWorkspace((workspace) => { workspace.aiHistory = []; }));
+  document.addEventListener("click", handleObjectSelection);
+  document.addEventListener("click", handleAiProposalAction);
+}
+
+async function restoreTableAvailability() {
+  for (const source of state.workspace.dataSources) {
+    let loaded = false;
+    try {
+      loaded = await tableExists(source.tableName);
+    } catch {
+      loaded = false;
+    }
+    source.available = loaded;
+    markTableLoaded(source.tableName, loaded);
+  }
+}
+
+async function loadSalesSample() {
+  try {
+    addStatus("sample", "load", "Loading sample sales data...");
+    const source = await loadIncludedSalesSample();
+    updateWorkspace((workspace) => {
+      addOrUpdateDataSource(workspace, source);
+    });
+    markTableLoaded(source.tableName, true);
+    elements().sqlEditor.value = DEFAULT_SALES_SQL;
+    elements().queryName.value = "Monthly revenue";
+    selectTab("data");
+    await saveWorkspace(state.workspace);
+    state.storageStatus.lastSavedAt = nowIso();
+    addStatus("sample", "load", "Sample sales data loaded.");
+  } catch (error) {
+    addError("sample", "load", error);
+  }
+}
+
+async function runEditorSql() {
+  const sql = elements().sqlEditor.value.trim();
+  if (!sql) return;
+  const result = await runQuery(sql, state.workspace.active.queryId);
+  setCurrentResult(result);
+  if (result.error) {
+    addError("duckdb", "execute-query", new Error(result.error.message));
+    return;
+  }
+  if (state.workspace.active.queryId) {
+    updateWorkspace((workspace) => {
+      const query = workspace.queries.find((item) => item.id === state.workspace.active.queryId);
+      if (query && query.sql.trim() === sql) {
+        query.lastRunAt = result.executedAt;
+        query.runCount += 1;
+      }
+    });
+  }
+  const spec = defaultVisualizationSpec({ queryId: state.workspace.active.queryId, columns: result.columns });
+  setCurrentSpec(spec);
+  await rebuildVisualization();
+  selectTab("sql");
+}
+
+function saveCurrentQuery() {
+  const existing = state.workspace.queries.find((query) => query.id === state.workspace.active.queryId);
+  const input = buildQuerySaveInput({
+    name: elements().queryName.value,
+    sql: elements().sqlEditor.value,
+    result: state.currentResult,
+    existing,
+  });
+  updateWorkspace((workspace) => {
+    addOrUpdateQuery(workspace, input, existing?.id);
+  });
+  if (state.currentResult) state.currentResult.queryId = state.workspace.active.queryId;
+  return state.workspace.queries.find((query) => query.id === state.workspace.active.queryId);
+}
+
+function specFromControls() {
+  const el = elements();
+  const y = state.currentResult?.columns.find((column) => column.name === el.yField.value);
+  return {
+    version: 1,
+    type: el.chartType.value,
+    title: el.vizTitle.value || "Untitled visualization",
+    subtitle: "",
+    dataset: { queryId: state.workspace.active.queryId },
+    encoding: {
+      x: { field: el.xField.value, dataType: state.currentResult?.columns.find((column) => column.name === el.xField.value)?.inferredType || "string", label: label(el.xField.value) },
+      y: [{ field: el.yField.value, dataType: y?.inferredType || "number", label: label(el.yField.value), format: /revenue|cost|profit/i.test(el.yField.value) ? "currency" : "number" }],
+      series: null,
+      size: null,
+      color: null,
+    },
+    options: {
+      stack: false,
+      normalize: false,
+      smooth: el.smoothLine.checked,
+      showPoints: el.showPoints.checked,
+      legend: el.legend.checked,
+      tooltip: "axis",
+      zoom: el.zoom.checked,
+      labels: false,
+      orientation: "vertical",
+    },
+  };
+}
+
+async function rebuildVisualization() {
+  if (!state.currentResult || state.currentResult.error) {
+    showEmpty(elements().chart, "Run a successful query to render a chart.");
+    return;
+  }
+  const spec = specFromControls();
+  const validation = validateVisualizationSpec(spec, state.currentResult);
+  setCurrentSpec(validation.spec);
+  if (!validation.valid) {
+    showEmpty(elements().chart, "Fix visualization validation errors to render a chart.");
+    return;
+  }
+  try {
+    const option = await renderVisualization(elements().chart, validation.spec, state.currentResult, getThemeTokens(activeThemeName()));
+    setCurrentOption(option);
+    elements().vizStatus.textContent = "Chart rendered.";
+  } catch (error) {
+    addError("chart", "render", error);
+  }
+}
+
+function syncAiSettingsToUi() {
+  const el = elements();
+  const settings = state.workspace.settings.ai;
+  state.ai.selectedTables = state.ai.selectedTables.length ? state.ai.selectedTables : state.workspace.dataSources.map((source) => source.tableName);
+  el.aiEnabled.checked = Boolean(settings.enabled);
+  el.aiModel.value = settings.model;
+  el.aiContextMode.value = settings.contextMode;
+  el.aiTemperature.value = settings.temperature;
+  el.aiMaxTokens.value = settings.maxOutputTokens;
+  el.aiMaxSampleRows.value = settings.maxSampleRows;
+  el.aiMaxResultRows.value = settings.maxResultRows;
+  el.aiTimeout.value = settings.timeoutMs;
+  el.aiSystemPrompt.value = settings.customSystemPrompt || "";
+}
+
+function persistAiSettingsFromUi() {
+  const el = elements();
+  updateWorkspace((workspace) => {
+    workspace.settings.ai = {
+      ...workspace.settings.ai,
+      enabled: el.aiEnabled.checked,
+      model: el.aiModel.value || workspace.settings.ai.model,
+      contextMode: el.aiContextMode.value,
+      temperature: Number(el.aiTemperature.value),
+      maxOutputTokens: Number(el.aiMaxTokens.value),
+      maxSampleRows: Number(el.aiMaxSampleRows.value),
+      maxResultRows: Number(el.aiMaxResultRows.value),
+      timeoutMs: Number(el.aiTimeout.value),
+      customSystemPrompt: el.aiSystemPrompt.value,
+    };
+  });
+  refreshAiContextPreview();
+}
+
+function selectedAiTables() {
+  return [...elements().aiTables.selectedOptions].map((option) => option.value);
+}
+
+function refreshAiContextPreview() {
+  const selectedTables = state.ai.selectedTables.length ? state.ai.selectedTables : state.workspace.dataSources.map((source) => source.tableName);
+  const built = buildAiContext({
+    workspace: state.workspace,
+    selectedTableNames: selectedTables,
+    result: state.currentResult,
+    recommendations: [],
+    settings: state.workspace.settings.ai,
+  });
+  state.ai.contextPreview = contextPreview(built.context);
+  state.ai.contextWarnings = built.warnings;
+}
+
+async function refreshAiModels() {
+  persistAiSettingsFromUi();
+  const result = await fetchOpenRouterModels({ apiKey: getOpenRouterApiKey(), timeoutMs: state.workspace.settings.ai.timeoutMs });
+  state.ai.modelList = result.models;
+  state.ai.modelListRefreshedAt = result.refreshedAt || new Date().toISOString();
+  state.ai.modelListError = result.error?.message || null;
+  saveAiModelCache({ models: result.models, refreshedAt: state.ai.modelListRefreshedAt });
+  if (!result.models.some((model) => model.id === state.workspace.settings.ai.model)) {
+    updateWorkspace((workspace) => { workspace.settings.ai.model = result.models[0]?.id || workspace.settings.ai.model; });
+  }
+  notify();
+}
+
+async function runSelectedAiAction() {
+  persistAiSettingsFromUi();
+  refreshAiContextPreview();
+  const interaction = makeInteraction({
+    action: elements().aiAction.value,
+    model: state.workspace.settings.ai.model,
+    selectedTables: state.ai.selectedTables,
+    contextMode: state.workspace.settings.ai.contextMode,
+    sampleRowsIncluded: state.workspace.settings.ai.contextMode === "sampleRows" && state.workspace.settings.ai.maxSampleRows > 0,
+    userQuestion: elements().aiQuestion.value,
+  });
+  try {
+    currentAiAbortController = new AbortController();
+    const result = await runAiAction({
+      apiKey: getOpenRouterApiKey(),
+      action: elements().aiAction.value,
+      question: elements().aiQuestion.value,
+      workspace: state.workspace,
+      selectedTables: state.ai.selectedTables.length ? state.ai.selectedTables : state.workspace.dataSources.map((source) => source.tableName),
+      currentResult: state.currentResult,
+      currentSpec: state.currentSpec,
+      recommendations: [],
+      settings: state.workspace.settings.ai,
+      abortSignal: currentAiAbortController.signal,
+    });
+    state.ai.currentResult = result;
+    state.ai.lastDiagnostics = { ...result.diagnostics, action: result.action };
+    if (result.proposalState) state.ai.proposals = result.proposalState.proposals;
+    interaction.status = result.validation.valid ? "complete" : "validation-failed";
+    interaction.summary = result.validation.summary || result.raw.summary || result.raw.headline || result.raw.assessment || "";
+    interaction.proposalIds = state.ai.proposals.map((proposal) => proposal.id);
+    interaction.usage = result.usage;
+    interaction.diagnostics = result.diagnostics;
+  } catch (error) {
+    interaction.status = "failed";
+    interaction.error = { code: error.code || "AI_ERROR", message: error.message };
+    state.ai.lastParseError = error.code === "AI_JSON_PARSE_FAILURE" ? error.message : null;
+    addError("ai", "run-action", error);
+  } finally {
+    currentAiAbortController = null;
+    updateWorkspace((workspace) => { addAiHistory(workspace, interaction); });
+  }
+}
+
+async function handleAiProposalAction(event) {
+  const button = event.target.closest("[data-ai-action]");
+  if (!button) return;
+  const item = state.ai.proposals.find((proposal) => proposal.id === button.dataset.id);
+  if (!item) return;
+  state.ai.selectedProposalId = item.id;
+  const action = button.dataset.aiAction;
+  if (action === "inspect") {
+    notify();
+    return;
+  }
+  if (action === "validate") {
+    item.sqlSafety = validateSqlSafety(item.proposal.sql, state.ai.selectedTables);
+    item.valid = item.errors.length === 0 && item.sqlSafety.ok;
+    state.ai.lastSqlSafetyError = item.sqlSafety.errors[0]?.message || null;
+    notify();
+    return;
+  }
+  if (action === "preview-data") {
+    item.sqlSafety = validateSqlSafety(item.proposal.sql, state.ai.selectedTables);
+    if (!item.sqlSafety.ok) {
+      state.ai.lastSqlSafetyError = item.sqlSafety.errors[0]?.message || "SQL safety failed.";
+      notify();
+      return;
+    }
+    item.explain = await explainSql(item.sqlSafety.sql);
+    if (item.explain.ok) item.preview = await previewAiSql(item.sqlSafety.sql, state.workspace.settings.ai.maxResultRows);
+    notify();
+    return;
+  }
+  if (action === "preview-chart") {
+    if (!item.preview?.ok) item.preview = await previewAiSql(item.proposal.sql, state.workspace.settings.ai.maxResultRows);
+    if (item.preview?.ok) {
+      const spec = { ...item.proposal.visualization, dataset: { queryId: "pending" } };
+      try {
+        await renderVisualization(elements().chart, spec, item.preview.result, getThemeTokens(activeThemeName()));
+        selectTab("visualize");
+      } catch (error) {
+        addError("ai", "preview-chart", error);
+      }
+    }
+    notify();
+    return;
+  }
+  if (action === "open-builder") {
+    const builder = proposalToBuilderState(item);
+    elements().sqlEditor.value = builder.temporaryQuery.sql;
+    elements().queryName.value = builder.temporaryQuery.name;
+    setCurrentSpec(builder.spec);
+    loadSpecIntoControls(builder.spec);
+    selectTab("sql");
+    notify();
+    return;
+  }
+  if (action === "save") {
+    if (!item.preview?.ok) item.preview = await previewAiSql(item.proposal.sql, state.workspace.settings.ai.maxResultRows);
+    updateWorkspace((workspace) => saveAiProposal(workspace, item, {
+      model: state.workspace.settings.ai.model,
+      interactionId: state.workspace.aiHistory[0]?.id || null,
+      result: item.preview?.result,
+    }));
+    notify();
+    return;
+  }
+  if (action === "copy-sql") {
+    copyText(item.proposal.sql).catch((error) => addError("ui", "copy-ai-sql", error));
+    return;
+  }
+  if (action === "copy-json") {
+    copyText(JSON.stringify(item.proposal, null, 2)).catch((error) => addError("ui", "copy-ai-json", error));
+    return;
+  }
+  if (action === "reject") {
+    markRejected(item);
+    notify();
+  }
+}
+
+function saveCurrentVisualization() {
+  const queryId = state.workspace.active.queryId;
+  if (!queryId || !state.workspace.queries.some((query) => query.id === queryId)) {
+    addError("workspace", "save-visualization", new Error("Save the query before saving the visualization."));
+    return;
+  }
+  const validation = validateVisualizationSpec(state.currentSpec, state.currentResult || { columns: [] });
+  if (!validation.valid) {
+    addError("viz-spec", "save-visualization", new Error(validation.errors.map((error) => error.message).join(" ")));
+    return;
+  }
+  updateWorkspace((workspace) => {
+    addOrUpdateVisualization(workspace, {
+      name: validation.spec.title,
+      queryId,
+      spec: validation.spec,
+      provenance: { createdBy: "user", model: null, createdAt: nowIso() },
+    }, workspace.active.visualizationId);
+  });
+}
+
+function handleObjectSelection(event) {
+  const button = event.target.closest("[data-action]");
+  if (!button) return;
+  const action = button.dataset.action;
+  const id = button.dataset.id;
+  if (action === "select-source") {
+    setActive({ dataSourceId: id });
+    const source = state.workspace.dataSources.find((item) => item.id === id);
+    if (source) elements().sqlEditor.value = `SELECT * FROM ${source.tableName} LIMIT 100;`;
+    selectTab("data");
+  }
+  if (action === "select-query") {
+    const query = state.workspace.queries.find((item) => item.id === id);
+    if (!query) return;
+    setActive({ queryId: query.id, visualizationId: null });
+    elements().queryName.value = query.name;
+    elements().sqlEditor.value = query.sql;
+    setCurrentResult(null);
+    setCurrentSpec(null);
+    showEmpty(elements().chart, "Run the selected query to refresh its result before rendering.");
+    selectTab("sql");
+  }
+  if (action === "select-viz") {
+    const viz = state.workspace.visualizations.find((item) => item.id === id);
+    const query = state.workspace.queries.find((item) => item.id === viz?.queryId);
+    if (!viz || !query) return;
+    setActive({ visualizationId: viz.id, queryId: query.id });
+    elements().queryName.value = query.name;
+    elements().sqlEditor.value = query.sql;
+    setCurrentSpec(viz.spec);
+    loadSpecIntoControls(viz.spec);
+    showEmpty(elements().chart, "Run or refresh the query to render this saved visualization.");
+    selectTab("visualize");
+  }
+}
+
+function loadSpecIntoControls(spec) {
+  const el = elements();
+  el.chartType.value = spec.type;
+  el.vizTitle.value = spec.title || "";
+  el.smoothLine.checked = Boolean(spec.options?.smooth);
+  el.showPoints.checked = Boolean(spec.options?.showPoints);
+  el.zoom.checked = spec.options?.zoom !== false;
+  el.legend.checked = Boolean(spec.options?.legend);
+}
+
+async function resetWorkspace() {
+  saveSuppressed = true;
+  try {
+    await resetStoredWorkspace();
+    setWorkspace(createWorkspace());
+    seedDefaultSql();
+    setCurrentResult(null);
+    setCurrentSpec(null);
+    showEmpty(elements().chart, "Workspace reset.");
+  } catch (error) {
+    addError("storage", "reset-workspace", error);
+  } finally {
+    saveSuppressed = false;
+    notify();
+  }
+}
+
+async function runSelfTest() {
+  const results = [];
+  const step = async (name, fn) => {
+    try {
+      await fn();
+      results.push({ name, ok: true });
+    } catch (error) {
+      results.push({ name, ok: false, message: error.message });
+    }
+    state.selfTest = results;
+    renderSelfTest(results);
+  };
+  await step("DuckDB connection exists", async () => {
+    const status = await initializeDatabase();
+    if (!status.conn) throw new Error(status.error || "No connection.");
+  });
+  await step("Temporary table can be created", () => executeSql("CREATE OR REPLACE TEMP TABLE qv_self_test (x INTEGER, y DOUBLE)"));
+  await step("Data can be inserted", () => executeSql("INSERT INTO qv_self_test VALUES (1, 2.5), (2, 4.5)"));
+  let dataset = null;
+  await step("SELECT can be executed", async () => {
+    dataset = await executeSql("SELECT x, y FROM qv_self_test ORDER BY x");
+    if (dataset.rowCount !== 2) throw new Error("Unexpected row count.");
+  });
+  const queryId = uid("query");
+  const validSpec = { version: 1, type: "line", title: "Self test", dataset: { queryId }, encoding: { x: { field: "x", dataType: "number", label: "X" }, y: [{ field: "y", dataType: "number", label: "Y" }] }, options: { smooth: true, showPoints: false, zoom: false, legend: false, tooltip: "axis", orientation: "vertical" } };
+  await step("Valid line spec passes validation", () => {
+    const validation = validateVisualizationSpec(validSpec, dataset);
+    if (!validation.valid) throw new Error(validation.errors[0]?.message || "Invalid.");
+  });
+  await step("Invalid field reference fails validation", () => {
+    const validation = validateVisualizationSpec({ ...validSpec, encoding: { ...validSpec.encoding, x: { field: "missing" }, y: validSpec.encoding.y } }, dataset);
+    if (validation.valid) throw new Error("Invalid field was accepted.");
+  });
+  await step("Valid spec compiles to ECharts option", () => {
+    const option = compileVisualizationSpec(validSpec, dataset, getThemeTokens(activeThemeName()));
+    if (!option.series?.[0] || !option.dataset) throw new Error("Missing compiled series or dataset.");
+  });
+  await step("IndexedDB can save and retrieve temporary workspace", async () => {
+    const workspace = createWorkspace({ id: uid("workspace") });
+    const restored = await saveTemporaryWorkspace(workspace);
+    if (restored.id !== workspace.id) throw new Error("Workspace ID did not round trip.");
+    await saveWorkspace(state.workspace);
+  });
+  await step("Workspace hydration preserves query and visualization relationships", () => {
+    const workspace = createWorkspace();
+    const query = addOrUpdateQuery(workspace, { id: queryId, name: "Q", sql: "SELECT x, y FROM qv_self_test" });
+    addOrUpdateVisualization(workspace, { name: "V", queryId: query.id, spec: validSpec });
+    const restored = hydrateWorkspace(JSON.parse(JSON.stringify(workspace)));
+    if (restored.visualizations[0].queryId !== restored.queries[0].id) throw new Error("Relationship not preserved.");
+  });
+  await step("AI settings store without exposing key", () => {
+    const key = getOpenRouterApiKey();
+    if (key && JSON.stringify(state.workspace).includes(key)) throw new Error("API key leaked into workspace.");
+  });
+  await step("Schema-only AI context creation", () => {
+    const built = buildAiContext({ workspace: state.workspace, selectedTableNames: state.workspace.dataSources.map((source) => source.tableName), settings: state.workspace.settings.ai });
+    if (!built.context.tables) throw new Error("Context missing tables.");
+  });
+  await step("Sensitive-field exclusion", () => {
+    const workspace = createWorkspace({ dataSources: [{ tableName: "t", rowCount: 1, columns: [{ name: "customer_email", duckType: "VARCHAR" }] }] });
+    const built = buildAiContext({ workspace, selectedTableNames: ["t"], settings: state.workspace.settings.ai, excludedColumns: ["t.customer_email"] });
+    if (built.context.tables[0].columns.some((column) => column.name === "customer_email")) throw new Error("Sensitive field was not excluded.");
+  });
+  const aiPayload = {
+    contract: AI_CONTRACTS.proposals,
+    contractVersion: 1,
+    summary: "Self-test AI proposal.",
+    proposals: [{
+      id: "proposal_self_test",
+      title: "Self-test proposal",
+      question: "Is the self-test working?",
+      description: "Simple SQL and line chart.",
+      sourceTables: ["qv_self_test"],
+      confidence: 0.9,
+      sql: "SELECT x, y FROM qv_self_test",
+      expectedColumns: [{ name: "x", dataType: "number", role: "x" }, { name: "y", dataType: "number", role: "y" }],
+      visualization: validSpec,
+      reasoning: { whyThisQuestion: "Smoke test.", whyThisChart: "Line chart uses x/y." },
+      assumptions: [],
+      cautions: [],
+    }],
+  };
+  let aiProposal = null;
+  await step("Valid proposal contract parsing", () => {
+    const validation = validateAiResponse(aiPayload, { expectedContract: AI_CONTRACTS.proposals, knownTables: ["qv_self_test"], dataset });
+    if (!validation.proposals[0].valid) throw new Error(validation.proposals[0].errors[0]?.message || "Proposal invalid.");
+    aiProposal = validation.proposals[0];
+  });
+  await step("Invalid proposal rejection", () => {
+    const validation = validateAiResponse({ ...aiPayload, proposals: [{ ...aiPayload.proposals[0], sql: "DROP TABLE qv_self_test" }] }, { expectedContract: AI_CONTRACTS.proposals, knownTables: ["qv_self_test"], dataset });
+    if (validation.proposals[0].valid) throw new Error("Destructive proposal accepted.");
+  });
+  await step("SELECT SQL accepted", () => {
+    if (!validateSqlSafety("SELECT * FROM qv_self_test", ["qv_self_test"]).ok) throw new Error("SELECT rejected.");
+  });
+  await step("Destructive SQL rejected", () => {
+    if (validateSqlSafety("DROP TABLE qv_self_test", ["qv_self_test"]).ok) throw new Error("DROP accepted.");
+  });
+  await step("EXPLAIN of safe sample query", async () => {
+    const explain = await explainSql("SELECT x, y FROM qv_self_test");
+    if (!explain.ok) throw new Error(explain.error || "Explain failed.");
+  });
+  await step("Limited preview execution", async () => {
+    const preview = await previewAiSql("SELECT x, y FROM qv_self_test", 1);
+    if (!preview.ok || preview.result.rowCount !== 1) throw new Error(preview.error || "Preview failed.");
+  });
+  await step("ECharts compilation from AI proposal", () => {
+    const option = compileVisualizationSpec(aiProposal.proposal.visualization, dataset, getThemeTokens(activeThemeName()));
+    if (!option.series?.length) throw new Error("AI proposal did not compile.");
+  });
+  await step("Proposal-to-builder conversion", () => {
+    const builder = proposalToBuilderState({ ...aiProposal, id: "proposal_self_test" });
+    if (builder.temporaryQuery.createdBy !== "ai") throw new Error("Builder provenance missing.");
+  });
+  await step("Saving AI query and visualization with provenance", () => {
+    const workspace = createWorkspace();
+    const saved = saveAiProposal(workspace, { ...aiProposal, id: "proposal_self_test" }, { model: "mock/model", interactionId: "ai_self_test" });
+    if (saved.query.provenance.model !== "mock/model" || saved.viz.provenance.createdBy !== "ai") throw new Error("AI provenance missing.");
+  });
+  await step("Repair contract parsing", () => {
+    const repair = validateRepair({ contract: AI_CONTRACTS.repair, contractVersion: 1, summary: "ok", repairedSql: "SELECT x, y FROM qv_self_test", expectedColumns: [], visualization: validSpec, changes: [], assumptions: [], cautions: [] }, ["qv_self_test"], dataset);
+    if (!repair.valid) throw new Error(repair.errors[0]?.message || "Repair invalid.");
+  });
+  await step("Sanitized AI-history persistence", () => {
+    const workspace = createWorkspace();
+    addAiHistory(workspace, { action: "self-test", model: "mock/model", apiKey: "secret" });
+    if (JSON.stringify(workspace.aiHistory).includes("secret")) throw new Error("Secret leaked to history.");
+  });
+  await step("Footer version matches APP_VERSION", () => {
+    if (!elements().footerVersion.textContent.includes(APP_VERSION)) throw new Error("Footer version mismatch.");
+  });
+  await step("Temporary records are cleaned up", () => executeSql("DROP TABLE IF EXISTS qv_self_test"));
+  notify();
+}
+
+function applyTheme() {
+  const theme = activeThemeName();
+  document.documentElement.dataset.theme = theme;
+  elements().themeSelect.value = state.workspace.settings.theme || "system";
+}
+
+function activeThemeName() {
+  const setting = state.workspace.settings.theme || "system";
+  if (setting !== "system") return setting;
+  return matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+
+function label(value) {
+  return String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}

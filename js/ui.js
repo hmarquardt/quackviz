@@ -1,369 +1,409 @@
-import { initDuckDb, queryRows, explain } from "./db.js";
-import { importFile, importSample } from "./import.js";
-import { profileTable } from "./profile.js";
-import { chartTypes } from "./viz-spec.js";
-import { buildQuery, specFromBuilder } from "./query-builder.js";
-import { recommendVisualizations } from "./viz-recommend.js";
-import { renderChart, exportChartPNG } from "./viz-renderer.js";
-import { validateAnalyticalSql, previewSql } from "./query.js";
-import { requestAiProposals, fetchModels } from "./ai.js";
-import { exportWorkspace, importWorkspace } from "./workspace.js";
-import { createWorkspace, state, upsertQuery, upsertVisualization } from "./state.js";
-import { copyText, downloadText, nowIso, truncate, uid, APP_VERSION } from "./utils.js";
-import { getApiKey, saveWorkspace, setApiKey } from "./storage.js";
+import { AI_CONTRACT_VERSION, APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL, DEPENDENCIES, VIZ_SPEC_VERSION, WORKSPACE_SCHEMA_VERSION } from "./constants.js";
+import { AI_ACTIONS } from "./ai-contracts.js";
+import { getDatabaseStatus } from "./db.js";
+import { getRendererStatus } from "./viz-renderer.js";
+import { chartTypes, defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
+import { html, safeString, truncate } from "./utils.js";
 
 const $ = (id) => document.getElementById(id);
 
-function activeTheme() {
-  return state.workspace.settings.theme || "dark";
-}
-
-export function bindUi() {
-  setupStaticControls();
-  bindEvents();
-  syncSettingsToUi();
-  renderAll();
-}
-
-function setupStaticControls() {
-  $("chartType").innerHTML = chartTypes().map((type) => `<option value="${type}">${type}</option>`).join("");
-  $("aggregation").innerHTML = ["sum", "avg", "count", "min", "max"].map((a) => `<option value="${a}">${a}</option>`).join("");
-  $("sortMode").innerHTML = `<option value="measure-desc">Measure descending</option><option value="x">X ascending</option>`;
-  $("dateBucket").innerHTML = ["none", "day", "week", "month", "quarter", "year"].map((b) => `<option value="${b}">${b}</option>`).join("");
-}
-
-function bindEvents() {
-  document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => selectTab(button.dataset.tab)));
-  $("themeToggle").onclick = async () => { state.workspace.settings.theme = activeTheme() === "dark" ? "light" : "dark"; applyTheme(); await saveWorkspace(); };
-  $("loadSales").onclick = () => loadSample("samples/sales.csv", "sales");
-  $("loadTelemetry").onclick = () => loadSample("samples/telemetry.csv", "telemetry");
-  $("fileInput").onchange = async (event) => handleImport(event.target.files[0]);
-  $("runSql").onclick = runEditorSql;
-  $("sqlEditor").addEventListener("keydown", (event) => { if ((event.ctrlKey || event.metaKey) && event.key === "Enter") runEditorSql(); });
-  $("copySql").onclick = () => copyText($("sqlEditor").value);
-  $("saveQuery").onclick = () => saveCurrentQuery();
-  $("applyBuilder").onclick = applyBuilder;
-  $("builderTable").onchange = () => {
-    const source = state.workspace.dataSources.find((s) => s.tableName === $("builderTable").value);
-    state.workspace.active.dataSourceId = source?.id || null;
-    renderSchema();
-    renderBuilder();
+export function elements() {
+  return {
+    themeSelect: $("themeSelect"),
+    loadSample: $("loadSample"),
+    sourceList: $("sourceList"),
+    savedQueries: $("savedQueries"),
+    savedVisualizations: $("savedVisualizations"),
+    dataStatus: $("dataStatus"),
+    schemaView: $("schemaView"),
+    clearSql: $("clearSql"),
+    copySql: $("copySql"),
+    saveQuery: $("saveQuery"),
+    runSql: $("runSql"),
+    queryName: $("queryName"),
+    sqlEditor: $("sqlEditor"),
+    queryRuntime: $("queryRuntime"),
+    queryRows: $("queryRows"),
+    queryError: $("queryError"),
+    resultsTable: $("resultsTable"),
+    vizStatus: $("vizStatus"),
+    chart: $("chart"),
+    copyDebug: $("copyDebug"),
+    resetWorkspace: $("resetWorkspace"),
+    selfTest: $("selfTest"),
+    debugReport: $("debugReport"),
+    selfTestResults: $("selfTestResults"),
+    chartType: $("chartType"),
+    xField: $("xField"),
+    yField: $("yField"),
+    vizTitle: $("vizTitle"),
+    smoothLine: $("smoothLine"),
+    showPoints: $("showPoints"),
+    zoom: $("zoom"),
+    legend: $("legend"),
+    saveViz: $("saveViz"),
+    vizErrors: $("vizErrors"),
+    copySpec: $("copySpec"),
+    specStatus: $("specStatus"),
+    specEditor: $("specEditor"),
+    footerVersion: $("footerVersion"),
+    aiStatus: $("aiStatus"),
+    aiEnabled: $("aiEnabled"),
+    openRouterKey: $("openRouterKey"),
+    refreshModels: $("refreshModels"),
+    clearAiHistory: $("clearAiHistory"),
+    aiModel: $("aiModel"),
+    aiAction: $("aiAction"),
+    aiTables: $("aiTables"),
+    aiQuestion: $("aiQuestion"),
+    aiContextMode: $("aiContextMode"),
+    aiTemperature: $("aiTemperature"),
+    aiMaxTokens: $("aiMaxTokens"),
+    aiMaxSampleRows: $("aiMaxSampleRows"),
+    aiMaxResultRows: $("aiMaxResultRows"),
+    aiTimeout: $("aiTimeout"),
+    aiSystemPrompt: $("aiSystemPrompt"),
+    aiSharingNotice: $("aiSharingNotice"),
+    aiContextPreview: $("aiContextPreview"),
+    previewAiContext: $("previewAiContext"),
+    runAi: $("runAi"),
+    cancelAi: $("cancelAi"),
+    aiProposals: $("aiProposals"),
+    aiCurrentAnalysis: $("aiCurrentAnalysis"),
+    aiHistory: $("aiHistory"),
   };
-  $("applySpec").onclick = applyRawSpec;
-  $("saveViz").onclick = saveCurrentVisualization;
-  $("exportPng").onclick = () => exportChartPNG();
-  $("exportSpec").onclick = () => downloadText("quackviz-spec.json", $("specEditor").value);
-  $("exportWorkspace").onclick = () => downloadText("quackviz-workspace.json", exportWorkspace());
-  $("workspaceInput").onchange = async (event) => { const file = event.target.files[0]; if (file) { importWorkspace(await file.text()); await saveWorkspace(); renderAll(); } };
-  $("newWorkspace").onclick = async () => { state.workspace = createWorkspace(); await saveWorkspace(); renderAll(); };
-  $("resetWorkspace").onclick = async () => { if (confirm("Reset saved workspace metadata? Imported DuckDB tables for this page session remain until reload.")) { state.workspace = createWorkspace(); await saveWorkspace(); renderAll(); } };
-  $("copyDebug").onclick = () => copyText($("debugReport").textContent);
-  $("downloadDebug").onclick = () => downloadText("quackviz-debug.json", $("debugReport").textContent);
-  $("selfTest").onclick = runSelfTest;
-  $("apiKey").onchange = () => setApiKey($("apiKey").value);
-  $("aiEnabled").onchange = persistAiSettings;
-  $("aiModel").onchange = persistAiSettings;
-  $("systemPrompt").onchange = persistAiSettings;
-  $("maxSampleRows").onchange = persistAiSettings;
-  $("maxResultRows").onchange = persistAiSettings;
-  $("refreshModels").onclick = refreshModels;
-  $("requestAi").onclick = generateAiProposals;
 }
 
-function selectTab(name) {
+export function initializeStaticControls() {
+  elements().chartType.innerHTML = chartTypes().map((type) => `<option value="${type}">${type === "bar" ? "Vertical bar" : "Line"}</option>`).join("");
+  elements().aiAction.innerHTML = AI_ACTIONS.map((action) => `<option value="${action.id}">${html(action.label)}</option>`).join("");
+  elements().footerVersion.textContent = `v${APP_VERSION} (${BUILD_DATE})`;
+}
+
+export function selectTab(name) {
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name));
   document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === `${name}Tab`));
 }
 
-async function loadSample(url, tableName) {
-  setStatus(`Loading ${tableName}...`);
-  await importSample(url, tableName);
-  await refreshTableState(tableName);
-  setStatus(`Loaded ${tableName}`);
+export function renderApp(state) {
+  renderSources(state);
+  renderSavedQueries(state);
+  renderSavedVisualizations(state);
+  renderSchema(state);
+  renderResult(state.currentResult);
+  renderBuilder(state);
+  renderSpec(state.currentSpec, state.currentResult);
+  renderAi(state);
+  renderDebug(state);
 }
 
-async function handleImport(file) {
-  if (!file) return;
-  setStatus(`Importing ${file.name}...`);
-  const tableName = await importFile(file);
-  await refreshTableState(tableName);
-  setStatus(`Imported ${file.name}`);
-}
-
-async function refreshTableState(tableName) {
-  const source = state.workspace.dataSources.find((s) => s.tableName === tableName);
-  const columns = source.columns.map((c) => ({ name: c.column_name || c.name, type: c.column_type || c.type }));
-  const profiles = await profileTable(tableName, source.columns);
-  state.profiles[tableName] = profiles;
-  source.profile = profiles;
-  state.tables = state.workspace.dataSources.map((s) => ({ name: s.tableName, rowCount: s.rowCount, columns: s.columns }));
-  if (!state.workspace.active.dataSourceId) state.workspace.active.dataSourceId = source.id;
-  if (!state.workspace.queries.find((q) => q.sql.includes(`FROM ${tableName}`))) {
-    $("sqlEditor").value = `SELECT * FROM ${tableName} LIMIT 100;`;
+function renderSources(state) {
+  const el = elements().sourceList;
+  if (!state.workspace.dataSources.length) {
+    el.innerHTML = `<div class="empty-state">No data sources loaded.</div>`;
+    return;
   }
-  await saveWorkspace();
-  renderAll();
-  renderRecommendations(tableName);
+  el.innerHTML = state.workspace.dataSources.map((source) => {
+    const active = source.id === state.workspace.active.dataSourceId ? " active" : "";
+    const available = state.loadedTables.has(source.tableName);
+    return `<button class="object-item${active}" data-action="select-source" data-id="${html(source.id)}">
+      <strong>${html(source.name)}</strong>
+      <small>${html(source.tableName)} · ${source.rowCount} rows · ${available ? "loaded" : "needs reload"}</small>
+    </button>`;
+  }).join("");
 }
 
-async function runEditorSql() {
-  const sql = $("sqlEditor").value;
-  try {
-    $("queryError").textContent = "";
-    const result = await queryRows(sql);
-    state.currentResult = { queryId: state.workspace.active.queryId, ...result };
-    state.diagnostics.lastSqlError = "";
-    $("queryRuntime").textContent = `Runtime: ${result.runtimeMs} ms`;
-    $("queryRows").textContent = `Rows: ${result.rows.length}`;
-    renderResultTable(result.rows, result.columns);
-    renderDebug();
-    return result;
-  } catch (error) {
-    state.diagnostics.lastSqlError = error.message;
-    $("queryError").textContent = error.message;
-    renderDebug();
-    throw error;
+function renderSavedQueries(state) {
+  const el = elements().savedQueries;
+  if (!state.workspace.queries.length) {
+    el.innerHTML = `<div class="empty-state">No saved queries.</div>`;
+    return;
   }
+  el.innerHTML = state.workspace.queries.map((query) => {
+    const active = query.id === state.workspace.active.queryId ? " active" : "";
+    return `<button class="object-item${active}" data-action="select-query" data-id="${html(query.id)}">
+      <strong>${html(query.name)}</strong>
+      <small>${html(truncate(query.sql, 70))}</small>
+    </button>`;
+  }).join("");
 }
 
-function saveCurrentQuery(name = "Saved query", sql = $("sqlEditor").value, createdBy = "user") {
-  const existingId = state.workspace.active.queryId;
-  const existing = state.workspace.queries.find((q) => q.id === existingId && q.sql === sql);
-  const query = existing || { id: uid("query"), name, description: "", sql, parameters: [], sourceTables: [], createdBy, createdAt: nowIso(), updatedAt: nowIso(), lastRunAt: null, runCount: 0 };
-  query.sql = sql;
-  query.updatedAt = nowIso();
-  upsertQuery(query);
-  saveWorkspace();
-  renderAll();
-  return query;
-}
-
-async function applyBuilder() {
-  const table = $("builderTable").value;
-  const chartType = $("chartType").value;
-  const params = { table, chartType, xField: $("xField").value, yField: $("yField").value, seriesField: $("seriesField").value || null, aggregation: $("aggregation").value, sortMode: $("sortMode").value, topN: Number($("topN").value || 0), dateBucket: $("dateBucket").value };
-  const sql = buildQuery(params);
-  $("sqlEditor").value = sql;
-  const query = saveCurrentQuery(`${chartType} ${table}`, sql);
-  const result = await runEditorSql();
-  const spec = specFromBuilder({ queryId: query.id, chartType, yField: params.yField, aggregation: params.aggregation, seriesField: params.seriesField });
-  spec.options.stack = $("stacking").checked;
-  spec.options.labels = $("labels").checked;
-  spec.options.legend = $("legend").checked;
-  spec.options.tooltip = $("tooltip").checked ? "axis" : false;
-  spec.options.zoom = $("zoom").checked;
-  setCurrentSpec(spec);
-  renderChart($("chart"), spec, result.rows, result.columns, activeTheme());
-  selectTab("visualize");
-}
-
-async function applyRawSpec() {
-  const spec = JSON.parse($("specEditor").value);
-  setCurrentSpec(spec);
-  const query = state.workspace.queries.find((q) => q.id === spec.dataset.queryId);
-  if (!query) throw new Error("Spec queryId does not match a saved query.");
-  $("sqlEditor").value = query.sql;
-  const result = await runEditorSql();
-  renderChart($("chart"), spec, result.rows, result.columns, activeTheme());
-}
-
-function setCurrentSpec(spec) {
-  state.currentSpec = spec;
-  $("specEditor").value = JSON.stringify(spec, null, 2);
-}
-
-function saveCurrentVisualization() {
-  if (!state.currentSpec) return;
-  const viz = { id: uid("viz"), name: state.currentSpec.title || "Visualization", description: "", question: "", queryId: state.currentSpec.dataset.queryId, spec: state.currentSpec, provenance: { createdBy: "user", model: null, createdAt: nowIso() }, createdAt: nowIso(), updatedAt: nowIso() };
-  upsertVisualization(viz);
-  saveWorkspace();
-  renderAll();
-}
-
-function renderAll() {
-  applyTheme();
-  renderBrowser();
-  renderSchema();
-  renderBuilder();
-  renderDebug();
-}
-
-function renderBrowser() {
-  $("tableList").innerHTML = listItems(state.workspace.dataSources, (s) => `${s.tableName}<small>${s.rowCount} rows</small>`);
-  $("queryList").innerHTML = listItems(state.workspace.queries, (q) => `${q.name}<small>${truncate(q.sql, 48)}</small>`);
-  $("vizList").innerHTML = listItems(state.workspace.visualizations, (v) => `${v.name}<small>${v.spec.type}</small>`);
-}
-
-function listItems(items, html) {
-  if (!items.length) return `<div class="empty">None</div>`;
-  return items.map((item, index) => `<button class="object-item" data-index="${index}">${html(item)}</button>`).join("");
-}
-
-function selectTable(tableName) {
-  const source = state.workspace.dataSources.find((s) => s.tableName === tableName);
-  state.workspace.active.dataSourceId = source?.id || null;
-  $("sqlEditor").value = `SELECT * FROM ${tableName} LIMIT 100;`;
-  renderSchema();
-  renderBuilder();
-  renderRecommendations(tableName);
-  selectTab("data");
-}
-
-function renderSchema() {
-  const source = state.workspace.dataSources.find((s) => s.id === state.workspace.active.dataSourceId) || state.workspace.dataSources[0];
-  if (!source) { $("schemaView").innerHTML = "Load a sample or import a file."; return; }
-  const profiles = state.profiles[source.tableName] || [];
-  $("schemaView").innerHTML = profiles.map((p) => `<article class="column-card"><h3>${p.name}</h3><p>${p.type} · ${p.semanticType}</p><dl><dt>Nulls</dt><dd>${p.nullCount}</dd><dt>Distinct</dt><dd>${p.distinctCount}</dd><dt>Min</dt><dd>${truncate(p.min)}</dd><dt>Max</dt><dd>${truncate(p.max)}</dd><dt>Avg</dt><dd>${truncate(p.average)}</dd></dl><small>${p.topValues.map((v) => `${truncate(v.value, 18)} (${v.count})`).join(", ")}</small></article>`).join("");
-}
-
-function renderBuilder() {
-  const sources = state.workspace.dataSources;
-  $("builderTable").innerHTML = sources.map((s) => `<option value="${s.tableName}">${s.tableName}</option>`).join("");
-  const source = sources.find((s) => s.id === state.workspace.active.dataSourceId) || sources[0];
-  const profiles = source ? state.profiles[source.tableName] || [] : [];
-  const options = `<option value=""></option>${profiles.map((p) => `<option value="${p.name}">${p.name} · ${p.semanticType}</option>`).join("")}`;
-  $("xField").innerHTML = options;
-  $("yField").innerHTML = options;
-  $("seriesField").innerHTML = options;
-  const firstCat = profiles.find((p) => p.semanticType === "category") || profiles[0];
-  const firstNum = profiles.find((p) => p.semanticType === "numeric" || p.semanticType === "currency") || profiles[1] || profiles[0];
-  if (firstCat) $("xField").value = firstCat.name;
-  if (firstNum) $("yField").value = firstNum.name;
-}
-
-function renderResultTable(rows, columns) {
-  if (!rows.length) { $("resultsTable").innerHTML = "Query returned no rows."; return; }
-  $("resultsTable").innerHTML = `<table><thead><tr>${columns.map((c) => `<th>${c.name}</th>`).join("")}</tr></thead><tbody>${rows.slice(0, 500).map((r) => `<tr>${columns.map((c) => `<td>${truncate(r[c.name])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
-}
-
-function renderRecommendations(tableName) {
-  const profiles = state.profiles[tableName] || [];
-  const recs = recommendVisualizations(tableName, profiles);
-  $("recommendations").innerHTML = recs.map((r, i) => `<button class="rec-card" data-index="${i}"><strong>${r.chartType}</strong><span>${Math.round(r.confidence * 100)}%</span><p>${r.reason}</p></button>`).join("");
-  $("recommendations").querySelectorAll(".rec-card").forEach((button) => button.onclick = async () => {
-    const rec = recs[Number(button.dataset.index)];
-    $("sqlEditor").value = rec.sql;
-    const query = saveCurrentQuery(`${rec.chartType} recommendation`, rec.sql, "system");
-    const result = await runEditorSql();
-    const spec = rec.makeSpec(query.id);
-    setCurrentSpec(spec);
-    renderChart($("chart"), spec, result.rows, result.columns, activeTheme());
-  });
-}
-
-function applyTheme() {
-  document.documentElement.dataset.theme = activeTheme();
-}
-
-function syncSettingsToUi() {
-  applyTheme();
-  $("apiKey").value = getApiKey();
-  const ai = state.workspace.settings.ai;
-  $("aiEnabled").checked = ai.enabled;
-  $("aiModel").innerHTML = `<option value="${ai.model}">${ai.model}</option>`;
-  $("systemPrompt").value = ai.systemPrompt || "";
-  $("maxSampleRows").value = ai.maxSampleRows ?? 0;
-  $("maxResultRows").value = ai.maxResultRows ?? 500;
-}
-
-async function persistAiSettings() {
-  state.workspace.settings.ai = { enabled: $("aiEnabled").checked, model: $("aiModel").value, systemPrompt: $("systemPrompt").value, maxSampleRows: Number($("maxSampleRows").value), maxResultRows: Number($("maxResultRows").value) };
-  await saveWorkspace();
-}
-
-async function refreshModels() {
-  const models = await fetchModels(getApiKey());
-  $("aiModel").innerHTML = models.slice(0, 100).map((m) => `<option value="${m.id}">${m.id}</option>`).join("");
-  await persistAiSettings();
-}
-
-async function generateAiProposals() {
-  await persistAiSettings();
-  if (!state.workspace.settings.ai.enabled) throw new Error("AI is disabled.");
-  try {
-    const payload = await requestAiProposals({ apiKey: getApiKey(), model: $("aiModel").value, systemPrompt: $("systemPrompt").value, workspace: state.workspace, tables: state.tables, profiles: state.profiles });
-    $("aiCards").innerHTML = payload.visualizations.map((p, i) => `<article class="proposal"><h3>${p.title}</h3><p>${p.question || ""}</p><p>${p.description || ""}</p><p>${p.why || ""}</p><pre>${p.sql}</pre><small>${p.spec?.type || ""} · ${(p.expectedColumns || []).map((c) => c.name).join(", ")}</small><div class="button-row"><button data-action="validate" data-index="${i}">Validate SQL</button><button data-action="preview" data-index="${i}">Preview</button><button data-action="save" data-index="${i}">Save</button><button data-action="reject" data-index="${i}">Reject</button></div></article>`).join("");
-    $("aiCards").querySelectorAll("button").forEach((button) => button.onclick = async () => {
-      const p = payload.visualizations[Number(button.dataset.index)];
-      if (button.dataset.action === "reject") { button.closest(".proposal").remove(); return; }
-      const safe = validateAnalyticalSql(p.sql);
-      if (!safe.valid) throw new Error(safe.errors.join(" "));
-      await explain(safe.sql);
-      if (button.dataset.action === "validate") return;
-      $("sqlEditor").value = previewSql(safe.sql, Number($("maxResultRows").value));
-      if (button.dataset.action === "preview") { selectTab("sql"); return; }
-      const query = saveCurrentQuery(p.title, safe.sql, "ai");
-      const spec = { ...p.spec, dataset: { queryId: query.id } };
-      setCurrentSpec(spec);
-      saveCurrentVisualization();
-      selectTab("visualize");
-    });
-  } catch (error) {
-    state.diagnostics.lastAiError = error.message;
-    renderDebug();
-    throw error;
+function renderSavedVisualizations(state) {
+  const el = elements().savedVisualizations;
+  if (!state.workspace.visualizations.length) {
+    el.innerHTML = `<div class="empty-state">No saved visualizations.</div>`;
+    return;
   }
+  el.innerHTML = state.workspace.visualizations.map((viz) => {
+    const active = viz.id === state.workspace.active.visualizationId ? " active" : "";
+    return `<button class="object-item${active}" data-action="select-viz" data-id="${html(viz.id)}">
+      <strong>${html(viz.name)}</strong>
+      <small>${html(viz.spec?.type || "")} · ${html(viz.queryId)}</small>
+    </button>`;
+  }).join("");
 }
 
-async function runSelfTest() {
-  try {
-    await initDuckDb();
-    await queryRows("CREATE OR REPLACE TEMP TABLE qv_self_test AS SELECT 1 AS x, 2 AS y");
-    await queryRows("SELECT * FROM qv_self_test");
-    const query = saveCurrentQuery("Self-test query", "SELECT 1 AS x, 2 AS y", "system");
-    const spec = specFromBuilder({ queryId: query.id, chartType: "vertical-bar", yField: "y", aggregation: "sum" });
-    renderChart($("chart"), spec, [{ x_value: "ok", sum_y: 2 }], [{ name: "x_value" }, { name: "sum_y" }], activeTheme());
-    const exported = exportWorkspace();
-    importWorkspace(exported);
-    await saveWorkspace();
-    state.diagnostics.selfTest = "passed";
-  } catch (error) {
-    state.diagnostics.selfTest = `failed: ${error.message}`;
+function renderSchema(state) {
+  const active = state.workspace.dataSources.find((source) => source.id === state.workspace.active.dataSourceId);
+  elements().dataStatus.textContent = databaseLabel(state);
+  if (!active) {
+    elements().schemaView.innerHTML = `<div class="empty-state">Load the sales sample to inspect a DuckDB table.</div>`;
+    return;
   }
-  renderAll();
+  const availability = state.loadedTables.has(active.tableName)
+    ? `<p class="muted">DuckDB table is loaded for this page session.</p>`
+    : `<p class="error-text">This saved data source is not loaded in DuckDB. Use "Load sample sales data" to re-import it.</p>`;
+  elements().schemaView.innerHTML = `
+    <article class="column-card">
+      <h3>${html(active.tableName)}</h3>
+      <p>${active.rowCount} rows · ${html(active.fileName)}</p>
+      ${availability}
+    </article>
+    ${active.columns.map((column) => `<article class="column-card">
+      <h3>${html(column.name)}</h3>
+      <p>${html(column.duckType)} · nullable: ${column.nullable ? "yes" : "no"}</p>
+    </article>`).join("")}`;
 }
 
-function renderDebug() {
-  state.diagnostics.echartsVersion = window.echarts?.version || "not loaded";
-  $("debugReport").textContent = JSON.stringify({
+function renderResult(result) {
+  if (!result) {
+    elements().queryRuntime.textContent = "Runtime: -";
+    elements().queryRows.textContent = "Rows: -";
+    elements().queryError.textContent = "";
+    elements().resultsTable.innerHTML = "Run a query to see results.";
+    return;
+  }
+  elements().queryRuntime.textContent = `Runtime: ${result.runtimeMs} ms`;
+  elements().queryRows.textContent = `Rows: ${result.rowCount}`;
+  elements().queryError.textContent = result.error?.message || "";
+  if (result.error) {
+    elements().resultsTable.innerHTML = `<div class="empty-state">SQL failed.</div>`;
+    return;
+  }
+  if (!result.rows.length) {
+    elements().resultsTable.innerHTML = `<div class="empty-state">Query returned no rows.</div>`;
+    return;
+  }
+  elements().resultsTable.innerHTML = `<table>
+    <thead><tr>${result.columns.map((column) => `<th>${html(column.name)}</th>`).join("")}</tr></thead>
+    <tbody>${result.rows.slice(0, 500).map((row) => `<tr>${result.columns.map((column) => `<td>${html(safeString(row[column.name]))}</td>`).join("")}</tr>`).join("")}</tbody>
+  </table>`;
+}
+
+function renderBuilder(state) {
+  const el = elements();
+  const result = state.currentResult && !state.currentResult.error ? state.currentResult : null;
+  const columns = result?.columns || [];
+  const options = columns.map((column) => `<option value="${html(column.name)}">${html(column.name)} · ${html(column.inferredType)}</option>`).join("");
+  el.xField.innerHTML = options;
+  el.yField.innerHTML = options;
+  if (!columns.length) {
+    el.saveViz.disabled = true;
+    return;
+  }
+  const spec = state.currentSpec || defaultVisualizationSpec({ queryId: state.workspace.active.queryId, columns });
+  el.chartType.value = spec.type;
+  el.xField.value = spec.encoding.x?.field || columns[0]?.name || "";
+  el.yField.value = spec.encoding.y?.[0]?.field || columns.find((column) => column.inferredType === "number")?.name || "";
+  el.vizTitle.value = spec.title || "";
+  el.smoothLine.checked = Boolean(spec.options?.smooth);
+  el.showPoints.checked = Boolean(spec.options?.showPoints);
+  el.zoom.checked = spec.options?.zoom !== false;
+  el.legend.checked = Boolean(spec.options?.legend);
+  el.saveViz.disabled = !state.workspace.active.queryId;
+}
+
+function renderSpec(spec, result) {
+  const el = elements();
+  if (!spec) {
+    el.specEditor.value = "";
+    el.vizErrors.textContent = "";
+    el.specStatus.textContent = `Spec version ${VIZ_SPEC_VERSION}`;
+    return;
+  }
+  const validation = validateVisualizationSpec(spec, result || { columns: [] });
+  el.specEditor.value = JSON.stringify(validation.spec, null, 2);
+  el.specStatus.textContent = validation.valid ? `Valid spec v${validation.spec.version}` : `Invalid spec v${validation.spec.version}`;
+  el.vizErrors.innerHTML = validation.errors.map((error) => `<p>${html(error.path)}: ${html(error.message)}</p>`).join("");
+}
+
+function renderDebug(state) {
+  const db = getDatabaseStatus();
+  const renderer = getRendererStatus();
+  const report = {
     appVersion: APP_VERSION,
-    duckdbVersion: state.diagnostics.duckdbVersion,
-    echartsVersion: state.diagnostics.echartsVersion,
-    capabilities: { fileApi: Boolean(window.FileReader), opfs: state.diagnostics.opfs, indexedDb: state.diagnostics.indexedDb, clipboard: Boolean(navigator.clipboard) },
-    loadedTableCount: state.workspace.dataSources.length,
-    savedQueryCount: state.workspace.queries.length,
-    savedVisualizationCount: state.workspace.visualizations.length,
-    currentWorkspaceId: state.workspace.id,
-    lastQueryRuntime: state.currentResult.runtimeMs,
-    lastSqlError: state.diagnostics.lastSqlError,
-    lastAiError: state.diagnostics.lastAiError,
-    currentAiModel: state.workspace.settings.ai.model,
-    selfTest: state.diagnostics.selfTest,
-  }, null, 2);
+    buildDate: BUILD_DATE,
+    workspaceSchemaVersion: WORKSPACE_SCHEMA_VERSION,
+    visualizationSpecVersion: VIZ_SPEC_VERSION,
+    dependencies: {
+      duckdbWasmPackageVersion: DEPENDENCIES.duckdbWasm.version,
+      duckdbWasmUrl: DEPENDENCIES.duckdbWasm.url,
+      echartsPackageVersion: DEPENDENCIES.echarts.version,
+      echartsUrl: DEPENDENCIES.echarts.url,
+    },
+    runtime: {
+      duckdbVersion: db.runtimeVersion,
+      selectedDuckdbBundle: db.selectedBundle,
+      connection: db.connection,
+      echartsVersion: renderer.echartsRuntimeVersion,
+      indexedDb: state.storageStatus.indexedDb,
+    },
+    workspace: {
+      id: state.workspace.id,
+      dataSourceCount: state.workspace.dataSources.length,
+      savedQueryCount: state.workspace.queries.length,
+      savedVisualizationCount: state.workspace.visualizations.length,
+      active: state.workspace.active,
+    },
+    lastQueryRuntime: state.currentResult?.runtimeMs ?? null,
+    lastError: state.errors[0] || null,
+    ai: {
+      enabled: Boolean(state.workspace.settings.ai?.enabled),
+      provider: "openrouter",
+      selectedModel: state.workspace.settings.ai?.model,
+      modelListLastRefreshed: state.ai.modelListRefreshedAt,
+      interactionCount: state.workspace.aiHistory?.length || 0,
+      lastAction: state.ai.lastDiagnostics?.action || null,
+      lastDuration: state.ai.lastDiagnostics?.durationMs || null,
+      lastHttpStatus: state.ai.lastDiagnostics?.httpStatus || null,
+      lastContractVersion: state.ai.lastDiagnostics?.contractVersion || null,
+      lastProposalCount: state.ai.lastDiagnostics?.proposalCount || 0,
+      lastParseError: state.ai.lastParseError,
+      lastSqlSafetyError: state.ai.lastSqlSafetyError,
+      lastRepairAttemptCount: state.ai.lastRepairAttemptCount,
+      sampleRowMode: state.workspace.settings.ai?.contextMode,
+      sensitiveColumnsExcluded: state.ai.contextWarnings,
+      apiKeyConfigured: state.ai.apiKeyConfigured ? "yes" : "no",
+    },
+  };
+  elements().debugReport.textContent = JSON.stringify(report, null, 2);
 }
 
-function setStatus(text) {
-  $("dataStatus").textContent = text;
-}
-
-document.addEventListener("click", (event) => {
-  const button = event.target.closest(".object-item");
-  if (!button) return;
-  const list = button.parentElement.id;
-  const index = Number(button.dataset.index);
-  if (list === "tableList") selectTable(state.workspace.dataSources[index].tableName);
-  if (list === "queryList") { const q = state.workspace.queries[index]; state.workspace.active.queryId = q.id; $("sqlEditor").value = q.sql; selectTab("sql"); }
-  if (list === "vizList") {
-    const v = state.workspace.visualizations[index];
-    state.workspace.active.visualizationId = v.id;
-    setCurrentSpec(v.spec);
-    const q = state.workspace.queries.find((item) => item.id === v.queryId);
-    if (q) {
-      $("sqlEditor").value = q.sql;
-      runEditorSql().then((result) => {
-        renderChart($("chart"), v.spec, result.rows, result.columns, activeTheme());
-        selectTab("visualize");
-      });
-    }
+function renderAi(state) {
+  const el = elements();
+  const settings = state.workspace.settings.ai;
+  el.aiStatus.textContent = settings.enabled ? `AI enabled · ${settings.model}` : "AI disabled.";
+  if (document.activeElement !== el.aiModel) {
+    const models = state.ai.modelList.length ? state.ai.modelList : [{ id: settings.model, name: settings.model, fallback: true }];
+    el.aiModel.innerHTML = models.map((model) => `<option value="${html(model.id)}">${html(model.name || model.id)}${model.fallback ? " (fallback)" : ""}</option>`).join("");
+    if (settings.model) el.aiModel.value = settings.model;
   }
-});
+  if (document.activeElement !== el.aiTables) {
+    el.aiTables.innerHTML = state.workspace.dataSources.map((source) => `<option value="${html(source.tableName)}">${html(source.tableName)} · ${source.rowCount} rows</option>`).join("");
+    for (const option of el.aiTables.options) option.selected = state.ai.selectedTables.includes(option.value);
+  }
+  el.aiEnabled.checked = Boolean(settings.enabled);
+  el.openRouterKey.placeholder = state.ai.apiKeyConfigured ? "API key configured" : "Stored locally only";
+  el.aiContextMode.value = settings.contextMode;
+  el.aiTemperature.value = settings.temperature;
+  el.aiMaxTokens.value = settings.maxOutputTokens;
+  el.aiMaxSampleRows.value = settings.maxSampleRows;
+  el.aiMaxResultRows.value = settings.maxResultRows;
+  el.aiTimeout.value = settings.timeoutMs;
+  el.aiSystemPrompt.value = settings.customSystemPrompt || "";
+  el.aiContextPreview.textContent = state.ai.contextPreview || "Refresh context preview before sending.";
+  el.aiSharingNotice.textContent = sharingNotice(state);
+  renderAiProposals(state);
+  renderAiCurrentAnalysis(state);
+  renderAiHistory(state);
+}
+
+function sharingNotice(state) {
+  const settings = state.workspace.settings.ai;
+  const base = settings.contextMode === "sampleRows"
+    ? `These sample rows will be sent to the selected external AI provider, limited to ${settings.maxSampleRows}.`
+    : "By default QuackViz sends schema metadata, not full tables.";
+  return [base, ...(state.ai.contextWarnings || [])].filter(Boolean).join(" ");
+}
+
+function renderAiProposals(state) {
+  const el = elements().aiProposals;
+  const proposals = state.ai.proposals || [];
+  if (!proposals.length) {
+    el.innerHTML = `<div class="empty-state">No active AI proposals.</div>`;
+    return;
+  }
+  el.innerHTML = proposals.map((item) => {
+    const p = item.proposal;
+    return `<article class="proposal-card${item.rejected ? " rejected" : ""}">
+      <h3>${html(p.title)}</h3>
+      <p>${html(p.question)}</p>
+      <p class="muted">${html(p.description)}</p>
+      <small>${html(p.visualization?.type || "sql")} · ${html((p.sourceTables || []).join(", "))} · confidence ${Math.round(Number(p.confidence || 0) * 100)}%</small>
+      <p>${item.valid ? "Validation: valid" : `Validation: ${html(item.errors.map((error) => error.message).join(" "))}`}</p>
+      <div class="button-row wrap">
+        <button data-ai-action="inspect" data-id="${html(item.id)}">Inspect</button>
+        <button data-ai-action="validate" data-id="${html(item.id)}">Validate</button>
+        <button data-ai-action="preview-data" data-id="${html(item.id)}">Preview data</button>
+        <button data-ai-action="preview-chart" data-id="${html(item.id)}">Preview chart</button>
+        <button data-ai-action="open-builder" data-id="${html(item.id)}">Open in builder</button>
+        <button data-ai-action="save" data-id="${html(item.id)}">Save</button>
+        <button data-ai-action="copy-sql" data-id="${html(item.id)}">Copy SQL</button>
+        <button data-ai-action="copy-json" data-id="${html(item.id)}">Copy JSON</button>
+        <button data-ai-action="reject" data-id="${html(item.id)}">Reject</button>
+      </div>
+    </article>`;
+  }).join("");
+}
+
+function renderAiCurrentAnalysis(state) {
+  const el = elements().aiCurrentAnalysis;
+  const item = (state.ai.proposals || []).find((proposal) => proposal.id === state.ai.selectedProposalId);
+  if (!item) {
+    el.innerHTML = `<div class="empty-state">Inspect a proposal to see SQL, validation, EXPLAIN, preview, and chart status.</div>`;
+    return;
+  }
+  const p = item.proposal;
+  el.innerHTML = `<h3>${html(p.title)}</h3>
+    <p>${html(p.reasoning?.whyThisQuestion || "")}</p>
+    <p>${html(p.reasoning?.whyThisChart || "")}</p>
+    <h3>SQL</h3><pre class="code-block">${html(p.sql)}</pre>
+    <h3>Validation</h3><pre class="code-block">${html(JSON.stringify({ valid: item.valid, errors: item.errors, warnings: item.warnings, sqlSafety: item.sqlSafety }, null, 2))}</pre>
+    <h3>EXPLAIN</h3><pre class="code-block">${html(item.explain?.plan || item.explain?.error || "Not run")}</pre>
+    <h3>Preview</h3><pre class="code-block">${html(item.preview ? JSON.stringify({ rowCount: item.preview.result?.rowCount, columns: item.preview.result?.columns }, null, 2) : "Not run")}</pre>`;
+}
+
+function renderAiHistory(state) {
+  const el = elements().aiHistory;
+  const history = state.workspace.aiHistory || [];
+  if (!history.length) {
+    el.innerHTML = `<div class="empty-state">No AI history.</div>`;
+    return;
+  }
+  el.innerHTML = history.map((item) => `<button class="object-item" data-ai-history-id="${html(item.id)}">
+    <strong>${html(item.action)} · ${html(item.status)}</strong>
+    <small>${html(item.model)} · ${html(item.timestamp)} · ${html(item.summary || "")}</small>
+  </button>`).join("");
+}
+
+export function renderSelfTest(results) {
+  elements().selfTestResults.innerHTML = results.map((item) => `<div class="${item.ok ? "test-pass" : "test-fail"}">${item.ok ? "PASS" : "FAIL"} · ${html(item.name)}${item.message ? ` · ${html(item.message)}` : ""}</div>`).join("");
+}
+
+function databaseLabel(state) {
+  const db = getDatabaseStatus();
+  if (db.initializing) return "DuckDB initializing...";
+  if (db.connection === "failed") return `DuckDB failed: ${db.error}`;
+  if (db.connection === "connected") return "DuckDB connected";
+  return "DuckDB not connected";
+}
+
+export function getThemeTokens(themeName) {
+  const style = getComputedStyle(document.documentElement);
+  return {
+    themeName,
+    background: style.getPropertyValue("--panel").trim(),
+    panel: style.getPropertyValue("--panel").trim(),
+    text: style.getPropertyValue("--text").trim(),
+    muted: style.getPropertyValue("--muted").trim(),
+    border: style.getPropertyValue("--border").trim(),
+    accent: style.getPropertyValue("--accent").trim(),
+    grid: style.getPropertyValue("--grid").trim(),
+    reducedMotion: matchMedia("(prefers-reduced-motion: reduce)").matches,
+  };
+}
+
+export function seedDefaultSql() {
+  elements().sqlEditor.value = DEFAULT_SALES_SQL;
+  elements().queryName.value = "Monthly revenue";
+}

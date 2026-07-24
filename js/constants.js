@@ -1,9 +1,10 @@
-export const APP_VERSION = "0.4.0";
+export const APP_VERSION = "0.5.0";
 export const BUILD_DATE = "2026-07-23";
 export const WORKSPACE_SCHEMA_VERSION = 1;
 export const VIZ_SPEC_VERSION = 1;
 export const AI_CONTRACT_VERSION = 1;
 export const DASHBOARD_VERSION = 1;
+export const REPORT_VERSION = 1;
 
 export const DEPENDENCIES = {
   echarts: {
@@ -49,6 +50,7 @@ export const TOOLTIP_MODES = ["axis", "item", false];
 export const ORIENTATIONS = ["vertical"];
 export const DASHBOARD_GRID_COLUMNS = 12;
 export const DASHBOARD_CONCURRENCY_LIMIT = 3;
+export const REPORT_CONCURRENCY_LIMIT = 2;
 
 export const OPENROUTER = {
   provider: "openrouter",

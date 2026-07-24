@@ -1,5 +1,6 @@
 import { APP_VERSION, BUILD_DATE, DEFAULT_AI_SETTINGS, WORKSPACE_SCHEMA_VERSION } from "./constants.js";
 import { normalizeDashboard } from "./dashboard.js";
+import { normalizeReport } from "./report.js";
 import { deepClone, nowIso, uid } from "./utils.js";
 
 export function createWorkspace(overrides = {}) {
@@ -14,11 +15,13 @@ export function createWorkspace(overrides = {}) {
     queries: [],
     visualizations: [],
     dashboards: [],
+    reports: [],
     active: {
       dataSourceId: null,
       queryId: null,
       visualizationId: null,
       dashboardId: null,
+      reportId: null,
     },
     settings: {
       theme: "system",
@@ -49,6 +52,7 @@ export function hydrateWorkspace(input) {
     queries: Array.isArray(input.queries) ? input.queries.map(hydrateQuery) : [],
     visualizations: Array.isArray(input.visualizations) ? input.visualizations.map((viz) => hydrateVisualization(viz, input.queries || [])) : [],
     dashboards: Array.isArray(input.dashboards) ? input.dashboards.map(normalizeDashboard) : [],
+    reports: Array.isArray(input.reports) ? input.reports.map(normalizeReport) : [],
     aiHistory: Array.isArray(input.aiHistory) ? input.aiHistory.map(sanitizeAiHistoryItem).slice(-100) : [],
     metadata: {
       appVersion: APP_VERSION,
@@ -59,6 +63,7 @@ export function hydrateWorkspace(input) {
       queryId: input.active?.queryId ?? null,
       visualizationId: input.active?.visualizationId ?? null,
       dashboardId: input.active?.dashboardId ?? null,
+      reportId: input.active?.reportId ?? null,
     },
     settings: {
       theme: ["system", "light", "dark"].includes(input.settings?.theme) ? input.settings.theme : "system",

@@ -2,6 +2,8 @@ import { AI_CONTRACT_VERSION, APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL, DEPEND
 import { AI_ACTIONS } from "./ai-contracts.js";
 import { getDatabaseStatus } from "./db.js";
 import { getDashboardRunnerStatus } from "./dashboard-runner.js";
+import { getReportRunnerStatus } from "./report-runner.js";
+import { REPORT_SECTION_TYPES } from "./report.js";
 import { getRendererStatus } from "./viz-renderer.js";
 import { chartTypes, defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
 import { html, safeString, truncate } from "./utils.js";
@@ -66,6 +68,32 @@ export function elements() {
     copyDeploymentInfo: $("copyDeploymentInfo"),
     dashboardFilterBar: $("dashboardFilterBar"),
     dashboardCanvas: $("dashboardCanvas"),
+    reportStatus: $("reportStatus"),
+    newReport: $("newReport"),
+    renameReport: $("renameReport"),
+    duplicateReport: $("duplicateReport"),
+    deleteReport: $("deleteReport"),
+    reportSelect: $("reportSelect"),
+    reportSectionType: $("reportSectionType"),
+    addReportSection: $("addReportSection"),
+    reportOutline: $("reportOutline"),
+    reportPreview: $("reportPreview"),
+    reportSectionTitle: $("reportSectionTitle"),
+    reportSectionNarrative: $("reportSectionNarrative"),
+    reportSourceViz: $("reportSourceViz"),
+    reportSourceQuery: $("reportSourceQuery"),
+    reportSourceDashboard: $("reportSourceDashboard"),
+    reportSqlVisible: $("reportSqlVisible"),
+    reportTableLimit: $("reportTableLimit"),
+    refreshReportSection: $("refreshReportSection"),
+    refreshReport: $("refreshReport"),
+    exportReportHtml: $("exportReportHtml"),
+    exportReportMarkdown: $("exportReportMarkdown"),
+    exportReportJson: $("exportReportJson"),
+    reportImportInput: $("reportImportInput"),
+    exportReportPackage: $("exportReportPackage"),
+    printReport: $("printReport"),
+    copyReportMetadata: $("copyReportMetadata"),
     footerVersion: $("footerVersion"),
     aiStatus: $("aiStatus"),
     aiEnabled: $("aiEnabled"),
@@ -97,6 +125,7 @@ export function elements() {
 export function initializeStaticControls() {
   elements().chartType.innerHTML = chartTypes().map((type) => `<option value="${type}">${type === "bar" ? "Vertical bar" : "Line"}</option>`).join("");
   elements().aiAction.innerHTML = AI_ACTIONS.map((action) => `<option value="${action.id}">${html(action.label)}</option>`).join("");
+  elements().reportSectionType.innerHTML = REPORT_SECTION_TYPES.map((type) => `<option value="${type}">${html(type)}</option>`).join("");
   elements().footerVersion.textContent = `v${APP_VERSION} (${BUILD_DATE})`;
 }
 
@@ -114,6 +143,7 @@ export function renderApp(state) {
   renderBuilder(state);
   renderSpec(state.currentSpec, state.currentResult);
   renderDashboard(state);
+  renderReport(state);
   renderAi(state);
   renderDebug(state);
 }
@@ -252,7 +282,9 @@ function renderDebug(state) {
   const db = getDatabaseStatus();
   const renderer = getRendererStatus();
   const dashboardRunner = getDashboardRunnerStatus();
+  const reportRunner = getReportRunnerStatus();
   const activeDashboard = state.workspace.dashboards.find((dashboard) => dashboard.id === state.workspace.active.dashboardId);
+  const activeReport = state.workspace.reports.find((report) => report.id === state.workspace.active.reportId);
   const report = {
     appVersion: APP_VERSION,
     buildDate: BUILD_DATE,
@@ -278,8 +310,11 @@ function renderDebug(state) {
       savedQueryCount: state.workspace.queries.length,
       savedVisualizationCount: state.workspace.visualizations.length,
       dashboardCount: state.workspace.dashboards.length,
+      reportCount: state.workspace.reports.length,
       activeDashboardId: state.workspace.active.dashboardId,
+      activeReportId: state.workspace.active.reportId,
       activeDashboardCardCount: activeDashboard?.layout.length || 0,
+      activeReportSectionCount: activeReport?.sections.length || 0,
       active: state.workspace.active,
     },
     dashboard: {
@@ -293,6 +328,21 @@ function renderDebug(state) {
       lastDashboardExportTime: state.dashboard.lastExportAt,
       lastSnapshotExportTime: state.dashboard.lastSnapshotAt,
       lastDashboardError: state.dashboard.lastError,
+    },
+    report: {
+      reportSchemaVersion: 1,
+      sectionCount: activeReport?.sections.length || 0,
+      dynamicSectionCount: activeReport?.sections.filter((section) => ["visualization", "dashboard-snapshot", "query-table", "kpi", "data-source-summary"].includes(section.type)).length || 0,
+      staleSectionCount: Object.values(state.report.sectionStates).filter((section) => section.status === "stale").length,
+      brokenSectionCount: Object.values(state.report.sectionStates).filter((section) => ["error", "unavailable"].includes(section.status)).length,
+      lastReportRefreshDuration: reportRunner.durationMs,
+      lastHtmlExportTime: state.report.lastHtmlExportAt,
+      lastMarkdownExportTime: state.report.lastMarkdownExportAt,
+      lastZipExportTime: state.report.lastPackageExportAt,
+      lastPrintAction: state.report.lastPrintAt,
+      lastReportError: state.report.lastError,
+      footerVersion: elements().footerVersion.textContent,
+      buildDate: BUILD_DATE,
     },
     lastQueryRuntime: state.currentResult?.runtimeMs ?? null,
     lastError: state.errors[0] || null,
@@ -316,6 +366,72 @@ function renderDebug(state) {
     },
   };
   elements().debugReport.textContent = JSON.stringify(report, null, 2);
+}
+
+function renderReport(state) {
+  const el = elements();
+  const reports = state.workspace.reports || [];
+  const active = reports.find((report) => report.id === state.workspace.active.reportId) || reports[0];
+  el.reportSelect.innerHTML = reports.map((report) => `<option value="${html(report.id)}">${html(report.name)}</option>`).join("");
+  if (active) el.reportSelect.value = active.id;
+  el.reportSourceViz.innerHTML = `<option value=""></option>${state.workspace.visualizations.map((viz) => `<option value="${html(viz.id)}">${html(viz.name)}</option>`).join("")}`;
+  el.reportSourceQuery.innerHTML = `<option value=""></option>${state.workspace.queries.map((query) => `<option value="${html(query.id)}">${html(query.name)}</option>`).join("")}`;
+  el.reportSourceDashboard.innerHTML = `<option value=""></option>${state.workspace.dashboards.map((dashboard) => `<option value="${html(dashboard.id)}">${html(dashboard.name)}</option>`).join("")}`;
+  if (!active) {
+    el.reportStatus.textContent = "No report selected.";
+    el.reportOutline.innerHTML = `<div class="empty-state">Create a report.</div>`;
+    el.reportPreview.innerHTML = `<div class="empty-state">Create a report to preview sections.</div>`;
+    return;
+  }
+  el.reportStatus.textContent = `${active.title} · ${active.sections.length} sections`;
+  const orderedSections = [...active.sections].sort((a, b) => a.position - b.position);
+  el.reportOutline.innerHTML = orderedSections.map((section) => `<article class="object-item${section.id === state.report.selectedSectionId ? " active" : ""}">
+    <button class="link-button report-outline-select" data-report-action="select-section" data-section-id="${html(section.id)}">
+      <strong>${html(section.visible ? "" : "Hidden · ")}${html(section.title)}</strong>
+      <small>${html(section.type)} · ${html(state.report.sectionStates[section.id]?.status || "idle")}</small>
+    </button>
+    <div class="inline-actions">
+      <button data-report-action="move-section-top" data-section-id="${html(section.id)}">Top</button>
+      <button data-report-action="move-section-up" data-section-id="${html(section.id)}">Up</button>
+      <button data-report-action="move-section-down" data-section-id="${html(section.id)}">Down</button>
+      <button data-report-action="move-section-bottom" data-section-id="${html(section.id)}">Bottom</button>
+      <button data-report-action="toggle-section-visible" data-section-id="${html(section.id)}">${html(section.visible ? "Hide" : "Show")}</button>
+      <button data-report-action="duplicate-section" data-section-id="${html(section.id)}">Duplicate</button>
+      <button data-report-action="remove-section" data-section-id="${html(section.id)}">Remove</button>
+    </div>
+  </article>`).join("") || `<div class="empty-state">No sections.</div>`;
+  el.reportPreview.innerHTML = `<section class="report-section cover"><h1>${html(active.title)}</h1><p>${html(active.subtitle)}</p></section>${orderedSections.map((section) => renderReportSection(section, state)).join("")}`;
+  const selected = active.sections.find((section) => section.id === state.report.selectedSectionId) || active.sections[0];
+  if (selected) {
+    el.reportSectionTitle.value = selected.title;
+    el.reportSectionNarrative.value = selected.content.narrative || selected.content.markdown || "";
+    el.reportSourceViz.value = selected.source.visualizationId || "";
+    el.reportSourceQuery.value = selected.source.queryId || "";
+    el.reportSourceDashboard.value = selected.source.dashboardId || "";
+    el.reportSqlVisible.checked = Boolean(selected.content.sqlVisible);
+    el.reportTableLimit.value = selected.content.table?.rowLimit || 25;
+  }
+}
+
+function renderReportSection(section, state) {
+  const status = state.report.sectionStates[section.id];
+  const hidden = section.visible === false ? " hidden" : "";
+  const body = section.snapshot?.imageDataUrl
+    ? `<img src="${html(section.snapshot.imageDataUrl)}" alt="${html(section.title)}">`
+    : section.snapshot?.rows?.length
+      ? renderSnapshotTable(section)
+      : `<p>${html(section.content.narrative || section.content.finding || section.content.markdown || "")}</p>`;
+  return `<section class="report-section${hidden}" data-section-id="${html(section.id)}">
+    <h2>${html(section.title)}</h2>
+    <p class="muted">${html(section.type)} · ${html(status?.status || "idle")}${status?.error ? ` · ${html(status.error)}` : ""}</p>
+    ${body}
+    ${section.content.caption ? `<p>${html(section.content.caption)}</p>` : ""}
+  </section>`;
+}
+
+function renderSnapshotTable(section) {
+  const columns = section.snapshot.columns || [];
+  return `<table><thead><tr>${columns.map((column) => `<th>${html(column.name)}</th>`).join("")}</tr></thead><tbody>${(section.snapshot.rows || []).map((row) => `<tr>${columns.map((column) => `<td>${html(row[column.name])}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
 function renderDashboard(state) {

@@ -7,6 +7,9 @@ export const AI_CONTRACTS = {
   critique: "quackviz-ai-chart-critique",
   dashboard: "quackviz-ai-dashboard",
   dashboardCritique: "quackviz-ai-dashboard-critique",
+  reportOutline: "quackviz-ai-report-outline",
+  reportNarrative: "quackviz-ai-report-narrative",
+  reportCritique: "quackviz-ai-report-critique",
 };
 
 export const AI_ACTIONS = [
@@ -20,6 +23,9 @@ export const AI_ACTIONS = [
   { id: "explain-sql", label: "Explain SQL" },
   { id: "build-dashboard", label: "Build a dashboard" },
   { id: "critique-dashboard", label: "Critique dashboard" },
+  { id: "build-report-outline", label: "Build report outline" },
+  { id: "draft-report-narrative", label: "Draft report narrative" },
+  { id: "critique-report", label: "Critique report" },
 ];
 
 export function buildSystemPrompt(extra = "") {
@@ -43,6 +49,9 @@ export function actionContract(action) {
   if (action === "critique-visualization" || action === "improve-visualization") return AI_CONTRACTS.critique;
   if (action === "build-dashboard") return AI_CONTRACTS.dashboard;
   if (action === "critique-dashboard") return AI_CONTRACTS.dashboardCritique;
+  if (action === "build-report-outline") return AI_CONTRACTS.reportOutline;
+  if (action === "draft-report-narrative") return AI_CONTRACTS.reportNarrative;
+  if (action === "critique-report") return AI_CONTRACTS.reportCritique;
   return AI_CONTRACTS.proposals;
 }
 

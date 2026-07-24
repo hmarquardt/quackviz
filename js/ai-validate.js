@@ -2,6 +2,7 @@ import { AI_CONTRACT_VERSION } from "./constants.js";
 import { AI_CONTRACTS } from "./ai-contracts.js";
 import { validateSqlSafety } from "./ai-sql-safety.js";
 import { validateVisualizationSpec } from "./viz-spec.js";
+import { REPORT_SECTION_TYPES } from "./report.js";
 
 const PROPOSAL_KEYS = new Set(["id", "title", "question", "description", "sourceTables", "confidence", "sql", "expectedColumns", "visualization", "reasoning", "assumptions", "cautions"]);
 const ROOT_KEYS = new Set(["contract", "contractVersion", "summary", "proposals"]);
@@ -10,6 +11,9 @@ const EXPLANATION_KEYS = new Set(["contract", "contractVersion", "headline", "su
 const CRITIQUE_KEYS = new Set(["contract", "contractVersion", "assessment", "issues", "recommendations", "alternativeVisualization", "cautions"]);
 const DASHBOARD_KEYS = new Set(["contract", "contractVersion", "title", "description", "audience", "proposals", "filters", "narrativeOrder", "assumptions", "cautions"]);
 const DASHBOARD_CRITIQUE_KEYS = new Set(["contract", "contractVersion", "summary", "issues", "recommendations", "proposedLayoutChanges", "proposedAdditions", "proposedRemovals", "cautions"]);
+const REPORT_OUTLINE_KEYS = new Set(["contract", "contractVersion", "title", "subtitle", "audience", "sections", "assumptions", "cautions"]);
+const REPORT_NARRATIVE_KEYS = new Set(["contract", "contractVersion", "headline", "summary", "findings", "recommendations", "cautions", "sourceReferences"]);
+const REPORT_CRITIQUE_KEYS = new Set(["contract", "contractVersion", "summary", "issues", "recommendations", "missingElements", "unsupportedClaims", "cautions"]);
 
 export function parseAiJson(text) {
   const trimmed = String(text || "").trim();
@@ -28,6 +32,9 @@ export function validateAiResponse(payload, { expectedContract, knownTables = []
   if (expectedContract === AI_CONTRACTS.critique) return validateCritique(payload);
   if (expectedContract === AI_CONTRACTS.dashboard) return validateAiDashboard(payload, knownTables, dataset);
   if (expectedContract === AI_CONTRACTS.dashboardCritique) return validateAiDashboardCritique(payload);
+  if (expectedContract === AI_CONTRACTS.reportOutline) return validateAiReportOutline(payload, dataset || {});
+  if (expectedContract === AI_CONTRACTS.reportNarrative) return validateAiReportNarrative(payload);
+  if (expectedContract === AI_CONTRACTS.reportCritique) return validateAiReportCritique(payload);
   return validateProposalResponse(payload, knownTables, dataset);
 }
 
@@ -128,6 +135,49 @@ export function validateAiDashboardCritique(payload) {
     if (!Array.isArray(payload?.[key])) errors.push(error(key, `${key} must be an array.`));
   }
   return { valid: errors.length === 0, errors, warnings: [], critique: payload };
+}
+
+export function validateAiReportOutline(payload, workspace = {}) {
+  const errors = baseContract(payload, AI_CONTRACTS.reportOutline, REPORT_OUTLINE_KEYS);
+  if (!payload?.title) errors.push(error("title", "Report title is required."));
+  if (!Array.isArray(payload?.sections)) errors.push(error("sections", "Report outline sections must be an array."));
+  if ((payload?.sections || []).length > 40) errors.push(error("sections", "Report outline exceeds the 40-section limit."));
+  const queryIds = new Set((workspace.queries || []).map((item) => item.id));
+  const vizIds = new Set((workspace.visualizations || []).map((item) => item.id));
+  const dashboardIds = new Set((workspace.dashboards || []).map((item) => item.id));
+  for (const [index, section] of (payload?.sections || []).entries()) {
+    if (!REPORT_SECTION_TYPES.includes(section.type)) errors.push(error(`sections[${index}].type`, `Unsupported report section type '${section.type}'.`));
+    if (section.visualizationId && !vizIds.has(section.visualizationId)) errors.push(error(`sections[${index}].visualizationId`, "Referenced visualization is missing."));
+    if (section.queryId && !queryIds.has(section.queryId)) errors.push(error(`sections[${index}].queryId`, "Referenced query is missing."));
+    if (section.dashboardId && !dashboardIds.has(section.dashboardId)) errors.push(error(`sections[${index}].dashboardId`, "Referenced dashboard is missing."));
+    if (String(section.draftNarrative || "").length > 4000) errors.push(error(`sections[${index}].draftNarrative`, "Draft narrative is too long."));
+  }
+  return { valid: errors.length === 0, errors, warnings: [], outline: payload };
+}
+
+export function validateAiReportNarrative(payload) {
+  const errors = baseContract(payload, AI_CONTRACTS.reportNarrative, REPORT_NARRATIVE_KEYS);
+  if (!payload?.headline) errors.push(error("headline", "Narrative headline is required."));
+  if (!payload?.summary) errors.push(error("summary", "Narrative summary is required."));
+  if (!Array.isArray(payload?.findings)) errors.push(error("findings", "Findings must be an array."));
+  if (!Array.isArray(payload?.sourceReferences)) errors.push(error("sourceReferences", "Source references must be an array."));
+  return { valid: errors.length === 0, errors, warnings: unsupportedClaimWarnings(payload), narrative: payload };
+}
+
+export function validateAiReportCritique(payload) {
+  const errors = baseContract(payload, AI_CONTRACTS.reportCritique, REPORT_CRITIQUE_KEYS);
+  if (!payload?.summary) errors.push(error("summary", "Report critique summary is required."));
+  for (const key of ["issues", "recommendations", "missingElements", "unsupportedClaims", "cautions"]) {
+    if (!Array.isArray(payload?.[key])) errors.push(error(key, `${key} must be an array.`));
+  }
+  return { valid: errors.length === 0, errors, warnings: [], critique: payload };
+}
+
+function unsupportedClaimWarnings(payload) {
+  const text = JSON.stringify(payload || {}).toLowerCase();
+  const warnings = [];
+  if (/(caused|because of|statistically significant|significant at)/.test(text)) warnings.push({ path: "summary", message: "Narrative may contain causal or statistical-significance claims that require supporting evidence." });
+  return warnings;
 }
 
 function baseContract(payload, contract, allowedKeys) {

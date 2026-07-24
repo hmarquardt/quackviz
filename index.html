@@ -44,6 +44,7 @@
           <button class="tab" data-tab="sql">SQL</button>
           <button class="tab" data-tab="visualize">Visualize</button>
           <button class="tab" data-tab="dashboard">Dashboard</button>
+          <button class="tab" data-tab="report">Report</button>
           <button class="tab" data-tab="ai">AI</button>
           <button class="tab" data-tab="debug">Debug</button>
         </nav>
@@ -168,6 +169,49 @@
           </div>
           <div id="dashboardFilterBar" class="dashboard-filter-bar"></div>
           <div id="dashboardCanvas" class="dashboard-grid" aria-live="polite"></div>
+        </section>
+
+        <section id="reportTab" class="tab-panel">
+          <div class="section-head">
+            <h2>Report</h2>
+            <span id="reportStatus" class="status">Create or select a report.</span>
+          </div>
+          <div class="report-workspace">
+            <aside class="report-sidebar">
+              <div class="button-row wrap">
+                <button id="newReport">New</button>
+                <button id="renameReport">Rename</button>
+                <button id="duplicateReport">Duplicate</button>
+                <button id="deleteReport" class="danger">Delete</button>
+              </div>
+              <label>Saved reports <select id="reportSelect"></select></label>
+              <label>Add section <select id="reportSectionType"></select></label>
+              <button id="addReportSection" class="wide">Add section</button>
+              <div id="reportOutline" class="object-list"></div>
+            </aside>
+            <article id="reportPreview" class="report-preview"></article>
+            <aside class="report-inspector">
+              <h2>Inspector</h2>
+              <label>Title <input id="reportSectionTitle"></label>
+              <label>Narrative <textarea id="reportSectionNarrative"></textarea></label>
+              <label>Source visualization <select id="reportSourceViz"></select></label>
+              <label>Source query <select id="reportSourceQuery"></select></label>
+              <label>Source dashboard <select id="reportSourceDashboard"></select></label>
+              <label><input id="reportSqlVisible" type="checkbox"> Show SQL</label>
+              <label>Table row limit <input id="reportTableLimit" type="number" min="1" max="500"></label>
+              <div class="button-row wrap">
+                <button id="refreshReportSection">Refresh section</button>
+                <button id="refreshReport">Refresh report</button>
+                <button id="exportReportHtml">HTML</button>
+                <button id="exportReportMarkdown">Markdown</button>
+                <button id="exportReportJson">Report JSON</button>
+                <label class="compact-file">Import report<input id="reportImportInput" type="file" accept=".json,application/json"></label>
+                <button id="exportReportPackage">Package</button>
+                <button id="printReport">Print / Save as PDF</button>
+                <button id="copyReportMetadata">Copy metadata</button>
+              </div>
+            </aside>
+          </div>
         </section>
 
         <section id="debugTab" class="tab-panel">

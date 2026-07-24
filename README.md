@@ -1,25 +1,23 @@
 # QuackViz
 
-QuackViz is a static, browser-local DuckDB-WASM and Apache ECharts analytical workspace. Current application version: `0.4.0`, build date `2026-07-23`.
+QuackViz is a static, browser-local DuckDB-WASM and Apache ECharts analytical workspace. Current application version: `0.5.0`, build date `2026-07-23`.
 
-## Current Milestone: Dashboards
+## Current Milestone: Reports
 
-QuackViz now supports local dashboard workspaces built from saved SQL-backed visualizations.
+QuackViz now supports section-based report authoring on top of the existing import, profiling, SQL, visualization, AI, dashboard, filter, persistence, diagnostics, and export foundation.
 
-The dashboard workflow is:
+The report workflow is:
 
 ```text
-tables and profiles
--> queries
--> visualizations
--> dashboard layout
--> shared filters
--> coordinated DuckDB execution
--> ECharts rendering
--> saved analytical workspace
+queries and visualizations
+-> dashboards and findings
+-> report sections
+-> narrative editing
+-> validated export
+-> portable analytical artifact
 ```
 
-Maps, geographic layers, PDF reports, server sharing, and multi-user collaboration are not implemented.
+Maps, geographic layers, native PDF generation, PowerPoint generation, server-side publishing, and multi-user collaboration are not implemented.
 
 ## Run Locally
 
@@ -29,7 +27,7 @@ No npm install and no build step are required:
 python3 -m http.server 8080
 ```
 
-Open `http://localhost:8080/`.
+Open `http://localhost:8080/`. Use a static server instead of `file://` because browser module and worker restrictions can block DuckDB-WASM and ES modules.
 
 ## Run Tests
 
@@ -39,7 +37,7 @@ Start the same static server, then open:
 http://localhost:8080/tests/
 ```
 
-The module tests also run under Node for DOM-free coverage.
+The DOM-free module tests can also be run under Node. Automated tests use mocked/local data and do not make billable AI calls.
 
 ## Exact Dependency Versions
 
@@ -48,134 +46,220 @@ The module tests also run under Node for DOM-free coverage.
 - DuckDB-WASM `1.33.1-dev57.0`
   - `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm`
 
-Pinned versions are centralized in `js/constants.js`, shown in Debug, and reflected in the footer and exports.
+Pinned versions are centralized in `js/constants.js`, shown in Debug, reflected in the persistent footer, and included in workspace, dashboard, AI, and report export metadata.
 
-## Dashboard Data Model
+## Report Data Model
 
-Dashboards are stored in `workspace.dashboards` and selected through `workspace.active.dashboardId`. A dashboard card references a saved visualization by stable ID; it does not duplicate query or visualization definitions.
+Reports are stored in `workspace.reports` and selected through `workspace.active.reportId`. Existing workspaces are migrated with an empty reports collection.
 
-Each dashboard includes:
+Each report includes:
 
-- `layout`: visualization cards with `x`, `y`, `width`, `height`, title flags, refresh settings, and local filters
-- `filters`: shared dashboard filters
-- `settings`: manual refresh mode, filter bar visibility, compact-card flags, and concurrency limit
-- `provenance`: user or AI origin metadata
+- `id`, `version`, `name`, `title`, `subtitle`, `description`, timestamps, and creator metadata
+- `settings` for theme inheritance, page size, orientation, SQL/provenance display, table row-count display, and static-versus-interactive HTML export preference
+- `sections`, each with a stable section ID, source references, editable narrative content, snapshot metadata, and provenance
+- `metadata` containing the canonical app version and build date
 
-Existing workspaces without dashboards are migrated with an empty `dashboards` array.
+Deleting a report does not delete the underlying queries, visualizations, dashboards, or data sources.
 
-## Layout Model
+## Supported Section Types
 
-The dashboard canvas uses CSS Grid with a 12-column desktop layout. Cards support button-based movement and resizing:
+The report model supports:
 
-- Move left/right/up/down
-- Increase/decrease width
-- Increase/decrease height
-- Duplicate card
-- Remove card
+- Cover
+- Heading
+- Text
+- Finding
+- KPI
+- Visualization
+- Dashboard snapshot
+- Query table
+- SQL
+- Divider
+- Appendix
+- Methodology
+- Data-source summary
 
-Responsive layouts collapse cards on narrower screens. Drag-and-drop is intentionally not included in this milestone.
+Sections can be added, duplicated, removed, hidden, moved up/down, moved to the top/bottom, edited, and refreshed when dynamic.
 
-## Add Visualization Workflow
+## Refresh and Staleness
 
-Create a dashboard, choose a saved visualization, and add it as a card. The same visualization may be added more than once. Deleting a dashboard does not delete underlying queries or visualizations.
+Dynamic sections resolve saved sources and refresh independently:
 
-## Refresh and Caching
+- Visualization sections resolve a saved visualization and its saved query.
+- Dashboard snapshot sections resolve the referenced dashboard and refresh its cards through the dashboard runner.
+- Query-table sections execute a saved query with a conservative row limit.
+- KPI sections execute a saved query and warn when it returns more than one row.
+- Data-source summary sections generate local metadata without raw source rows.
 
-The dashboard runner resolves each card’s visualization and query, applies compatible filters, validates SQL, executes through DuckDB, and returns per-card state:
+One failed section does not block the rest of the report. Report refresh uses a bounded concurrency limit and records status in Debug.
 
-- `idle`
-- `loading`
-- `ready`
-- `error`
-- `unavailable`
-- `cancelled`
+QuackViz report exports contain snapshots unless explicitly refreshed.
 
-One failed card does not block the rest. Refresh uses a small concurrency limit and records dashboard refresh stats in Debug. Query results are cached in memory by query/filter/layout signature and invalidated on data reload or explicit refresh.
+Sections preserve live source references and snapshot metadata. A section is marked stale when the referenced query, visualization, or dashboard changes after the snapshot.
 
-## Filters
+## Narrative Editing
 
-Shared dashboard filters support category, multi-category, numeric/date ranges, boolean equality, null/not-null, and text contains. Card-local filters use the same model internally.
+Report narrative is stored as editable text. The current renderer supports safe Markdown-lite paragraphs and code-friendly text containers; arbitrary HTML is not accepted as a report section format.
 
-Dashboard filters are applied only when a compatible field binding exists.
+AI-generated narrative remains editable and is treated as untrusted text.
 
-QuackViz does not silently rewrite arbitrary SQL to force dashboard filters. The initial implementation safely wraps result queries:
-
-```sql
-SELECT *
-FROM (
-  <original query>
-) AS __quackviz_dashboard
-WHERE <compatible predicates>
-```
-
-If a field is not present in a card result, the filter is skipped and reported.
-
-## Import and Export
-
-Dashboard package export uses:
-
-```json
-{
-  "format": "quackviz-dashboard",
-  "formatVersion": 1,
-  "exportedBy": {
-    "app": "QuackViz",
-    "appVersion": "0.4.0",
-    "buildDate": "2026-07-23",
-    "exportedAt": "..."
-  },
-  "dashboard": {},
-  "visualizations": [],
-  "queries": []
-}
-```
-
-Packages include referenced visualizations and queries, omit API keys and result datasets, validate future versions, and remap IDs on collision.
-
-## Static Snapshot Export
-
-Dashboard snapshot export creates a self-contained non-interactive HTML snapshot with dashboard title, timestamp, app version/build date, card status, query titles, optional SQL, and runtime metadata. It does not include API keys, source tables, DuckDB databases, or executable AI content.
-
-## AI Dashboards
+## AI Reports
 
 The AI action catalog includes:
 
-- Build a dashboard
-- Critique dashboard
+- Build report outline
+- Draft report narrative
+- Critique report
 
 Added contracts:
 
-- `quackviz-ai-dashboard`
-- `quackviz-ai-dashboard-critique`
+- `quackviz-ai-report-outline`
+- `quackviz-ai-report-narrative`
+- `quackviz-ai-report-critique`
 
-AI dashboard output is validated for contract version, existing visualization IDs, unsafe SQL, visualization specs, layout bounds, excessive card counts, executable content, and unsupported fields. AI dashboard proposals require user approval; QuackViz does not automatically execute or save AI dashboard output.
+AI report output is validated for contract version, section types, existing source IDs, section count, narrative length, executable content, and unsupported fields. AI narrative validation warns about causal or statistical-significance claims that require supporting evidence.
 
-## Existing AI Safety
+AI changes require user review. QuackViz does not automatically create, save, or execute report content from AI output.
 
-OpenRouter API keys remain localStorage-only and are excluded from workspace export, dashboard export, snapshot export, Debug, and AI history. AI-generated SQL still passes through the existing SQL safety pipeline before preview.
+## Claim Discipline
 
-## Footer and Deployment Info
+AI report prompts and validators are designed around these rules:
 
-The persistent footer shows the canonical app version and build date. Debug, workspace metadata, dashboard packages, snapshots, and AI diagnostics use the same constants. The Dashboard toolbar includes a “Copy deployment info” action with app version, build date, workspace ID, active dashboard ID, and page URL.
+- Use only provided results and metadata.
+- Avoid causal claims unless supported.
+- Avoid statistical-significance claims unless a test result is provided.
+- Distinguish observation from inference.
+- Mention truncation, missing data, and incomplete periods where relevant.
+- Avoid inventing business context.
+
+## HTML Export
+
+HTML report export creates a self-contained static document with:
+
+- Embedded CSS
+- Report title, subtitle, sections, tables, captions, and metadata
+- Embedded snapshot images when available
+- Canonical app version and build date
+- Print-friendly styles
+
+HTML exports omit API keys, active AI settings, raw source tables, external scripts, and the editable QuackViz application UI. Interactive ECharts export remains disabled; static snapshots are the default.
+
+## Markdown Export
+
+Markdown export includes:
+
+- Report title and subtitle
+- Generation metadata and QuackViz version
+- Section headings and narrative
+- Tables
+- SQL source placeholders when SQL visibility is enabled
+- Image data URIs when section snapshots contain images
+
+Markdown is portable text; image handling depends on whether the section has an embedded snapshot image.
+
+## Report Package Export
+
+The package export currently produces a portable JSON object containing the files that would form a report package:
+
+```text
+report/index.html
+report/report.md
+report/manifest.json
+```
+
+The manifest uses:
+
+```json
+{
+  "format": "quackviz-report-package",
+  "formatVersion": 1,
+  "generatedBy": {
+    "app": "QuackViz",
+    "appVersion": "0.5.0",
+    "buildDate": "2026-07-23"
+  }
+}
+```
+
+No ZIP dependency is added in this milestone, so the UI downloads the package-file manifest as JSON rather than a binary `.zip`. Raw source data is excluded by default.
+
+## Print and PDF Workflow
+
+The Report workspace includes `Print / Save as PDF`, which invokes the browser print dialog.
+
+“Save as PDF” uses the browser print system; QuackViz does not generate native PDF files in this milestone.
+
+The print stylesheet hides application controls, keeps sections readable, repeats table headers where browsers support it, and defaults to print-friendly output.
+
+## Report Import and Export
+
+Report JSON export uses:
+
+```json
+{
+  "format": "quackviz-report",
+  "formatVersion": 1,
+  "exportedBy": {
+    "app": "QuackViz",
+    "appVersion": "0.5.0",
+    "buildDate": "2026-07-23",
+    "exportedAt": "..."
+  },
+  "report": {},
+  "referencedVisualizations": [],
+  "referencedQueries": [],
+  "referencedDashboards": []
+}
+```
+
+Imports validate future versions, normalize reports, remap colliding report IDs, preserve section source references, and exclude API keys. Referenced query, visualization, and dashboard definitions are included in export metadata but are not fully merged on import yet.
+
+## Broken Sources
+
+Broken or unavailable report sections remain visible. A section can become broken when a query, visualization, dashboard, source table, SQL query, chart spec, or snapshot is missing or invalid. The report preview shows the section state and keeps any previous snapshot unless refreshed.
+
+## Dashboards and Filters
+
+The dashboard milestone remains functional. Dashboards support saved visualization cards, CSS-grid layout, bounded coordinated refresh, in-memory result caching, shared filters, local filters, dashboard package export/import, snapshot HTML export, AI dashboard proposals, and AI dashboard critique.
+
+Dashboard filters are applied only when a compatible field binding exists.
+
+QuackViz does not silently rewrite arbitrary SQL to force dashboard filters.
+
+## Privacy and AI Safety
+
+OpenRouter API keys remain localStorage-only and are excluded from workspace export, dashboard export, report export, snapshots, Debug, and AI history. AI output is treated as untrusted input. AI-generated SQL still passes through the existing SQL safety pipeline before preview or use.
+
+QuackViz does not silently execute AI-generated SQL.
+
+## Footer and Versioning
+
+The persistent footer shows the canonical app version and build date. Debug, workspace metadata, dashboard exports, dashboard snapshots, report metadata, HTML export, Markdown export, report package manifests, and AI diagnostics use the same constants.
+
+The Report workspace includes a `Copy report metadata` action. The Dashboard toolbar retains `Copy deployment info`.
 
 ## Accessibility and Performance
 
-Dashboard controls are keyboard-accessible buttons and selects. Cards show text state, runtime, row count, and refreshed time. Reduced-motion settings are passed through the chart compiler/renderer. The runner avoids unbounded concurrent queries and keeps result caches in memory only.
+Report outline controls are keyboard-accessible buttons. Sections expose headings, table captions, image alt text, status text, and non-color-only state labels. Reduced-motion settings continue to flow through chart rendering paths.
+
+The report workspace is designed for dozens of sections without refreshing queries on every narrative edit. Dynamic refresh is explicit and bounded.
 
 ## Current Limitations
 
-- Dashboard filters work against result fields; source-column filtering for arbitrary SQL requires explicit future bindings.
-- Date-range presets are not yet a rich dedicated control; date filters are supported by the filter model and wrapping layer.
-- PNG export per dashboard card is not wired in this milestone UI.
-- Browser self-test requires a static server and CDN access.
-- Import/export for the broader workspace remains limited compared with the dashboard package export.
+- Chart image capture for report visualization sections currently uses a static placeholder snapshot unless a section already has an image data URL.
+- Report package export is a JSON package-file representation, not a binary ZIP.
+- Report JSON import does not fully merge referenced queries, visualizations, or dashboards into the workspace yet.
+- Markdown export includes SQL source placeholders rather than full SQL text unless the section snapshot/source has been enriched.
+- Native PDF generation is not implemented; use browser print.
+- AI report actions are validated, but automatic report creation from AI outline proposals is not wired as a one-click flow yet.
+- Browser self-test requires a static server and CDN access for DuckDB/ECharts runtime paths.
 
 ## Next Milestone
 
 Recommended focus:
 
-1. Add explicit filter-binding metadata to builder-generated queries.
-2. Add richer filter UI for date ranges and per-card local filters.
-3. Add card PNG export using the chart instance manager.
-4. Add approved AI dashboard creation from validated proposals.
-5. Restore broader workspace import/export and visualization package exports.
+1. Add real chart-image capture from ECharts instances into report snapshots.
+2. Add a pinned ZIP dependency or native multi-file download flow for binary report packages.
+3. Fully merge referenced queries, visualizations, and dashboards during report import.
+4. Add richer Markdown-lite editing controls and source-inspection UI.
+5. Wire approved AI report outlines into an unsaved editable report draft.

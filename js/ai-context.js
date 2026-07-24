@@ -51,6 +51,13 @@ export function buildAiContext({ workspace, selectedTableNames, result = null, r
       cardCount: dashboard.layout?.length || 0,
       filterCount: dashboard.filters?.length || 0,
     })),
+    reports: (workspace.reports || []).map((report) => ({
+      id: report.id,
+      name: report.name,
+      title: report.title,
+      sectionCount: report.sections?.length || 0,
+      dynamicSectionCount: (report.sections || []).filter((section) => ["visualization", "dashboard-snapshot", "query-table", "kpi", "data-source-summary"].includes(section.type)).length,
+    })),
   };
   if (result && settings.includeResultSummary) context.currentResult = summarizeResult(result, settings.maxResultRows || 25);
   return { context, warnings: context.privacy.warning ? [context.privacy.warning] : [], sensitiveColumns };

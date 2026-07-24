@@ -12,6 +12,9 @@ import { invalidateDashboardCache, refreshCard, refreshDashboard as runDashboard
 import { initializeDatabase, executeSql, tableExists } from "./db.js";
 import { loadIncludedSalesSample } from "./import.js";
 import { runQuery, buildQuerySaveInput } from "./query.js";
+import { addReport, addSection, createReport, deleteReport as deleteReportModel, duplicateReport as duplicateReportModel, duplicateSection, findReport, findSection, moveSection, removeSection, setSectionVisible, updateReport } from "./report.js";
+import { createReportPackageFiles, exportReportJson, importReportJson, renderReportHtml, renderReportMarkdown } from "./report-export.js";
+import { refreshReport as runReportRefresh, refreshSection as runReportSectionRefresh } from "./report-runner.js";
 import { addError, addStatus, markTableLoaded, notify, setActive, setCurrentOption, setCurrentResult, setCurrentSpec, setWorkspace, state, subscribe, updateWorkspace } from "./state.js";
 import { getOpenRouterApiKey, initializeStorage, loadAiModelCache, loadThemePreference, loadWorkspace, resetStoredWorkspace, saveAiModelCache, saveThemePreference, saveTemporaryWorkspace, saveWorkspace, saveWorkspaceDebounced, setOpenRouterApiKey } from "./storage.js";
 import { addAiHistory, addOrUpdateDataSource, addOrUpdateQuery, addOrUpdateVisualization, createWorkspace, hydrateWorkspace } from "./workspace.js";
@@ -24,6 +27,7 @@ import { elements, getThemeTokens, initializeStaticControls, renderApp, renderSe
 let saveSuppressed = false;
 let currentAiAbortController = null;
 let currentDashboardAbortController = null;
+let currentReportAbortController = null;
 
 window.addEventListener("error", (event) => addError("app", "window-error", event.error || new Error(event.message)));
 window.addEventListener("unhandledrejection", (event) => addError("app", "unhandled-rejection", event.reason));
@@ -138,9 +142,28 @@ function bindEvents() {
   el.dashboardImportInput.addEventListener("change", importDashboardFromFile);
   el.snapshotDashboard.addEventListener("click", snapshotActiveDashboard);
   el.copyDeploymentInfo.addEventListener("click", copyDeploymentInfo);
+  el.newReport.addEventListener("click", createNewReport);
+  el.reportSelect.addEventListener("change", () => updateWorkspace((workspace) => { workspace.active.reportId = el.reportSelect.value || null; }));
+  el.renameReport.addEventListener("click", renameActiveReport);
+  el.duplicateReport.addEventListener("click", duplicateActiveReport);
+  el.deleteReport.addEventListener("click", deleteActiveReport);
+  el.addReportSection.addEventListener("click", addSelectedReportSection);
+  for (const input of [el.reportSectionTitle, el.reportSectionNarrative, el.reportSourceViz, el.reportSourceQuery, el.reportSourceDashboard, el.reportSqlVisible, el.reportTableLimit]) {
+    input.addEventListener("change", updateSelectedReportSection);
+  }
+  el.refreshReport.addEventListener("click", refreshActiveReport);
+  el.refreshReportSection.addEventListener("click", refreshSelectedReportSection);
+  el.exportReportHtml.addEventListener("click", exportActiveReportHtml);
+  el.exportReportMarkdown.addEventListener("click", exportActiveReportMarkdown);
+  el.exportReportJson.addEventListener("click", exportActiveReportJson);
+  el.reportImportInput.addEventListener("change", importReportFromFile);
+  el.exportReportPackage.addEventListener("click", exportActiveReportPackage);
+  el.printReport.addEventListener("click", printActiveReport);
+  el.copyReportMetadata.addEventListener("click", copyReportMetadata);
   document.addEventListener("click", handleObjectSelection);
   document.addEventListener("click", handleAiProposalAction);
   document.addEventListener("click", handleDashboardAction);
+  document.addEventListener("click", handleReportAction);
 }
 
 async function restoreTableAvailability() {
@@ -506,6 +529,202 @@ function downloadJson(filename, payload) {
 
 function safeFileName(name) {
   return String(name || "dashboard").replace(/[^a-z0-9]+/gi, "_").toLowerCase();
+}
+
+function activeReportOrNull() {
+  return state.workspace.reports.find((report) => report.id === state.workspace.active.reportId) || state.workspace.reports[0] || null;
+}
+
+function createNewReport() {
+  updateWorkspace((workspace) => addReport(workspace, createReport({ name: `Report ${workspace.reports.length + 1}`, title: `Report ${workspace.reports.length + 1}` })));
+  selectTab("report");
+}
+
+function renameActiveReport() {
+  const report = activeReportOrNull();
+  if (!report) return;
+  const title = prompt("Report title", report.title);
+  if (!title) return;
+  updateWorkspace((workspace) => updateReport(workspace, report.id, { title, name: title }));
+}
+
+function duplicateActiveReport() {
+  const report = activeReportOrNull();
+  if (!report) return;
+  updateWorkspace((workspace) => duplicateReportModel(workspace, report.id));
+}
+
+function deleteActiveReport() {
+  const report = activeReportOrNull();
+  if (!report) return;
+  if (!confirm(`Delete report "${report.title}"? Sources are kept.`)) return;
+  updateWorkspace((workspace) => deleteReportModel(workspace, report.id));
+}
+
+function addSelectedReportSection() {
+  let report = activeReportOrNull();
+  if (!report) {
+    updateWorkspace((workspace) => addReport(workspace, createReport({ name: "Default report", title: "Default Report" })));
+    report = activeReportOrNull();
+  }
+  const type = elements().reportSectionType.value;
+  updateWorkspace((workspace) => {
+    const active = findReport(workspace, report.id);
+    const section = addSection(active, {
+      type,
+      source: {
+        visualizationId: type === "visualization" ? elements().reportSourceViz.value || null : null,
+        queryId: ["query-table", "kpi", "sql"].includes(type) ? elements().reportSourceQuery.value || null : null,
+        dashboardId: type === "dashboard-snapshot" ? elements().reportSourceDashboard.value || null : null,
+      },
+    });
+    workspace.active.reportId = active.id;
+    state.report.selectedSectionId = section.id;
+  });
+}
+
+function updateSelectedReportSection() {
+  const report = activeReportOrNull();
+  if (!report || !state.report.selectedSectionId) return;
+  updateWorkspace((workspace) => {
+    const section = findSection(findReport(workspace, report.id), state.report.selectedSectionId);
+    section.title = elements().reportSectionTitle.value || section.title;
+    section.content.narrative = elements().reportSectionNarrative.value;
+    section.source.visualizationId = elements().reportSourceViz.value || null;
+    section.source.queryId = elements().reportSourceQuery.value || null;
+    section.source.dashboardId = elements().reportSourceDashboard.value || null;
+    section.content.sqlVisible = elements().reportSqlVisible.checked;
+    section.content.table.rowLimit = Number(elements().reportTableLimit.value || 25);
+  });
+}
+
+async function refreshActiveReport() {
+  const report = activeReportOrNull();
+  if (!report) return;
+  currentReportAbortController = new AbortController();
+  state.report.refreshing = true;
+  state.report.sectionStates = Object.fromEntries(report.sections.filter((section) => section.visible !== false).map((section) => [section.id, { sectionId: section.id, status: "loading" }]));
+  notify();
+  try {
+    const result = await runReportRefresh({ report, workspace: state.workspace, loadedTables: state.loadedTables, signal: currentReportAbortController.signal });
+    state.report.sectionStates = result.states;
+    state.report.lastRefresh = result;
+  } catch (error) {
+    state.report.lastError = error.message;
+    addError("report", "refresh", error);
+  } finally {
+    state.report.refreshing = false;
+    currentReportAbortController = null;
+    notify();
+  }
+}
+
+async function refreshSelectedReportSection() {
+  const report = activeReportOrNull();
+  const section = report?.sections.find((item) => item.id === state.report.selectedSectionId);
+  if (!report || !section) return;
+  state.report.sectionStates[section.id] = { sectionId: section.id, status: "loading" };
+  notify();
+  state.report.sectionStates[section.id] = await runReportSectionRefresh({ report, section, workspace: state.workspace, loadedTables: state.loadedTables });
+  notify();
+}
+
+function handleReportAction(event) {
+  const button = event.target.closest("[data-report-action]");
+  if (!button) return;
+  const report = activeReportOrNull();
+  if (!report) return;
+  const sectionId = button.dataset.sectionId;
+  const action = button.dataset.reportAction;
+  if (action === "select-section") {
+    state.report.selectedSectionId = sectionId;
+    notify();
+    return;
+  }
+  updateWorkspace((workspace) => {
+    const active = findReport(workspace, report.id);
+    if (action === "remove-section") removeSection(active, sectionId);
+    if (action === "duplicate-section") duplicateSection(active, sectionId);
+    if (action === "move-section-up") moveSection(active, sectionId, -1);
+    if (action === "move-section-down") moveSection(active, sectionId, 1);
+    if (action === "move-section-top") moveSection(active, sectionId, -active.sections.length);
+    if (action === "move-section-bottom") moveSection(active, sectionId, active.sections.length);
+    if (action === "toggle-section-visible") {
+      const section = findSection(active, sectionId);
+      setSectionVisible(active, sectionId, section.visible === false);
+    }
+  });
+}
+
+function exportActiveReportHtml() {
+  const report = activeReportOrNull();
+  if (!report) return;
+  const html = renderReportHtml(report, { workspace: state.workspace });
+  state.report.lastHtmlExportAt = new Date().toISOString();
+  downloadBlob(`${safeFileName(report.title)}.html`, html, "text/html");
+  notify();
+}
+
+function exportActiveReportMarkdown() {
+  const report = activeReportOrNull();
+  if (!report) return;
+  const markdown = renderReportMarkdown(report);
+  state.report.lastMarkdownExportAt = new Date().toISOString();
+  downloadBlob(`${safeFileName(report.title)}.md`, markdown, "text/markdown");
+  notify();
+}
+
+function exportActiveReportJson() {
+  const report = activeReportOrNull();
+  if (!report) return;
+  const pkg = exportReportJson(state.workspace, report.id);
+  downloadBlob(`${safeFileName(report.title)}_report.json`, JSON.stringify(pkg, null, 2), "application/json");
+}
+
+async function importReportFromFile(event) {
+  const file = event.target.files?.[0];
+  if (!file) return;
+  try {
+    const pkg = JSON.parse(await file.text());
+    updateWorkspace((workspace) => importReportJson(workspace, pkg));
+    addStatus("report", "import", `Imported report ${file.name}.`);
+  } catch (error) {
+    state.report.lastError = error.message;
+    addError("report", "import", error);
+  } finally {
+    event.target.value = "";
+  }
+}
+
+function exportActiveReportPackage() {
+  const report = activeReportOrNull();
+  if (!report) return;
+  const pkg = createReportPackageFiles(report);
+  state.report.lastPackageExportAt = pkg.manifest.generatedAt;
+  downloadBlob(`${safeFileName(report.title)}_package.json`, JSON.stringify(pkg, null, 2), "application/json");
+  notify();
+}
+
+function printActiveReport() {
+  state.report.lastPrintAt = new Date().toISOString();
+  notify();
+  window.print();
+}
+
+function copyReportMetadata() {
+  const report = activeReportOrNull();
+  if (!report) return;
+  copyText(JSON.stringify({ appVersion: APP_VERSION, buildDate: BUILD_DATE, reportId: report.id, title: report.title, sectionCount: report.sections.length }, null, 2)).catch((error) => addError("ui", "copy-report-metadata", error));
+}
+
+function downloadBlob(filename, content, type) {
+  const blob = new Blob([content], { type });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = filename;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 function syncAiSettingsToUi() {
@@ -951,6 +1170,69 @@ async function runSelfTest() {
   await step("Reject unsafe AI dashboard proposal", () => {
     const result = validateAiResponse({ contract: AI_CONTRACTS.dashboard, contractVersion: 1, title: "Dash", proposals: [{ type: "new-visualization", sql: "DROP TABLE qv_self_test", layout: { width: 6, height: 4 } }], filters: [], narrativeOrder: [], assumptions: [], cautions: [] }, { expectedContract: AI_CONTRACTS.dashboard, knownTables: ["qv_self_test"], dataset: createWorkspace() });
     if (result.valid) throw new Error("Unsafe AI dashboard accepted.");
+  });
+  let reportWorkspace = null;
+  let report = null;
+  await step("Create temporary report", () => {
+    reportWorkspace = createWorkspace();
+    const query = addOrUpdateQuery(reportWorkspace, { id: "query_report_self", name: "Report Q", sql: "SELECT x, y FROM qv_self_test", sourceTables: ["qv_self_test"] });
+    addOrUpdateVisualization(reportWorkspace, { id: "viz_report_self", name: "Report V", queryId: query.id, spec: validSpec });
+    report = addReport(reportWorkspace, createReport({ id: "report_self", title: "Self-test Report" }));
+    if (reportWorkspace.active.reportId !== report.id) throw new Error("Report not active.");
+  });
+  await step("Add report sections", () => {
+    addSection(report, { type: "text", title: "Summary", content: { narrative: "Self-test narrative." } });
+    addSection(report, { type: "visualization", source: { visualizationId: "viz_report_self" } });
+    addSection(report, { type: "query-table", source: { queryId: "query_report_self" } });
+    addSection(report, { type: "kpi", source: { queryId: "query_report_self" } });
+    if (report.sections.length !== 4) throw new Error("Report sections missing.");
+  });
+  await step("Refresh report dynamic sections", async () => {
+    const result = await runReportRefresh({ report, workspace: reportWorkspace, loadedTables: new Set(["qv_self_test"]) });
+    if (!result.states[report.sections[1].id] || result.failed) throw new Error("Report refresh failed.");
+  });
+  await step("Detect stale report section", () => {
+    reportWorkspace.queries[0].updatedAt = nowIso();
+    const stale = report.sections.some((section) => section.snapshotRevision && section.snapshotRevision.queryUpdatedAt !== reportWorkspace.queries[0].updatedAt);
+    if (!stale) throw new Error("Stale section not detected.");
+  });
+  await step("Generate HTML report export", () => {
+    const html = renderReportHtml(report, { workspace: reportWorkspace });
+    if (!html.includes(APP_VERSION) || /<script/i.test(html)) throw new Error("HTML export invalid.");
+  });
+  await step("Generate Markdown report export", () => {
+    const markdown = renderReportMarkdown(report);
+    if (!markdown.includes(APP_VERSION) || !markdown.startsWith("# Self-test Report")) throw new Error("Markdown export invalid.");
+  });
+  await step("Generate report package manifest", () => {
+    const pkg = createReportPackageFiles(report);
+    if (pkg.manifest.generatedBy.appVersion !== APP_VERSION || !pkg.files.length) throw new Error("Report package invalid.");
+  });
+  await step("Parse valid AI report outline", () => {
+    const result = validateAiResponse({ contract: AI_CONTRACTS.reportOutline, contractVersion: 1, title: "Self-test Report", subtitle: "", audience: "Test", sections: [{ type: "visualization", visualizationId: "viz_report_self", title: "Chart" }], assumptions: [], cautions: [] }, { expectedContract: AI_CONTRACTS.reportOutline, dataset: reportWorkspace });
+    if (!result.valid) throw new Error(result.errors[0]?.message || "Report outline invalid.");
+  });
+  await step("Reject invalid AI report outline", () => {
+    const result = validateAiResponse({ contract: AI_CONTRACTS.reportOutline, contractVersion: 1, title: "Self-test Report", sections: [{ type: "map", title: "Map" }], assumptions: [], cautions: [] }, { expectedContract: AI_CONTRACTS.reportOutline, dataset: reportWorkspace });
+    if (result.valid) throw new Error("Invalid report outline accepted.");
+  });
+  await step("Parse AI report narrative", () => {
+    const result = validateAiResponse({ contract: AI_CONTRACTS.reportNarrative, contractVersion: 1, headline: "Self-test headline", summary: "The supplied rows were refreshed.", findings: [], recommendations: [], cautions: [], sourceReferences: [{ type: "query", id: "query_report_self" }] }, { expectedContract: AI_CONTRACTS.reportNarrative });
+    if (!result.valid) throw new Error(result.errors[0]?.message || "Narrative invalid.");
+  });
+  await step("Parse AI report critique", () => {
+    const result = validateAiResponse({ contract: AI_CONTRACTS.reportCritique, contractVersion: 1, summary: "Report is short.", issues: [], recommendations: [], missingElements: [], unsupportedClaims: [], cautions: [] }, { expectedContract: AI_CONTRACTS.reportCritique });
+    if (!result.valid) throw new Error(result.errors[0]?.message || "Critique invalid.");
+  });
+  await step("Report JSON import export", () => {
+    const exported = exportReportJson(reportWorkspace, report.id);
+    const imported = importReportJson(reportWorkspace, exported);
+    if (!imported.report.id || reportWorkspace.reports.length !== 2) throw new Error("Report import failed.");
+  });
+  await step("No API key in report exports", () => {
+    const payload = JSON.stringify({ html: renderReportHtml(report), markdown: renderReportMarkdown(report), pkg: createReportPackageFiles(report), json: exportReportJson(reportWorkspace, report.id) });
+    const key = getOpenRouterApiKey();
+    if (key && payload.includes(key)) throw new Error("API key leaked into report export.");
   });
   await step("Footer version matches APP_VERSION", () => {
     if (!elements().footerVersion.textContent.includes(APP_VERSION)) throw new Error("Footer version mismatch.");

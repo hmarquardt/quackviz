@@ -37,6 +37,17 @@ export const state = {
     lastSnapshotAt: null,
     lastError: null,
   },
+  report: {
+    selectedSectionId: null,
+    sectionStates: {},
+    refreshing: false,
+    lastRefresh: null,
+    lastHtmlExportAt: null,
+    lastMarkdownExportAt: null,
+    lastPackageExportAt: null,
+    lastPrintAt: null,
+    lastError: null,
+  },
   ai: {
     apiKeyConfigured: false,
     modelList: [],

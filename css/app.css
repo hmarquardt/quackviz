@@ -167,9 +167,30 @@ input[type="checkbox"] { width: auto; min-height: auto; }
   width: 100%;
   background: transparent;
   text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 7px;
 }
 .object-item.active { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
 .object-item small { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.report-outline-select {
+  display: grid;
+  gap: 2px;
+  text-align: left;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+}
+.inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.inline-actions button {
+  padding: 3px 6px;
+  font-size: 12px;
+}
 
 .schema-grid {
   display: grid;
@@ -349,6 +370,67 @@ th {
   padding: 2px 6px;
 }
 
+.report-workspace {
+  display: grid;
+  grid-template-columns: 260px minmax(360px, 1fr) 300px;
+  gap: 12px;
+  align-items: start;
+}
+
+.report-sidebar,
+.report-inspector,
+.report-preview {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  padding: 12px;
+}
+
+.report-preview {
+  min-height: 70vh;
+  color: var(--text);
+}
+
+.report-section {
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.report-section.hidden {
+  opacity: .55;
+}
+
+.report-section img {
+  max-width: 100%;
+  border: 1px solid var(--border);
+}
+
+@media print {
+  .left-pane,
+  .right-pane,
+  .tabs,
+  .report-sidebar,
+  .report-inspector,
+  .app-footer {
+    display: none !important;
+  }
+  .app-shell,
+  .center-pane,
+  .tab-panel,
+  .report-workspace {
+    display: block;
+    height: auto;
+    overflow: visible;
+  }
+  .report-preview {
+    border: 0;
+    min-height: auto;
+  }
+  .report-section {
+    break-inside: avoid;
+  }
+}
+
 .test-pass { color: var(--accent); }
 .test-fail { color: var(--danger); }
 
@@ -359,6 +441,7 @@ th {
     overflow: visible;
   }
   .ai-grid { grid-template-columns: 1fr; }
+  .report-workspace { grid-template-columns: 1fr; }
   .dashboard-grid {
     display: block;
   }

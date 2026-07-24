@@ -11,9 +11,13 @@ import { dashboardFilterTests } from "./dashboard-filters.test.js";
 import { dashboardExportTests } from "./dashboard-export.test.js";
 import { dashboardRunnerTests } from "./dashboard-runner.test.js";
 import { aiDashboardTests } from "./ai-dashboard.test.js";
+import { reportModelTests } from "./report-model.test.js";
+import { reportRunnerTests } from "./report-runner.test.js";
+import { reportExportTests } from "./report-export.test.js";
+import { aiReportTests } from "./ai-report.test.js";
 
 const resultsEl = document.getElementById("results");
-const tests = [...vizSpecTests, ...vizCompilerTests, ...workspaceTests, ...aiContractTests, ...aiSqlSafetyTests, ...aiContextTests, ...aiProposalTests, ...versionTests, ...dashboardModelTests, ...dashboardFilterTests, ...dashboardExportTests, ...dashboardRunnerTests, ...aiDashboardTests];
+const tests = [...vizSpecTests, ...vizCompilerTests, ...workspaceTests, ...aiContractTests, ...aiSqlSafetyTests, ...aiContextTests, ...aiProposalTests, ...versionTests, ...dashboardModelTests, ...dashboardFilterTests, ...dashboardExportTests, ...dashboardRunnerTests, ...aiDashboardTests, ...reportModelTests, ...reportRunnerTests, ...reportExportTests, ...aiReportTests];
 const results = [];
 
 for (const test of tests) {

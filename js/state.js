@@ -103,6 +103,28 @@ export const state = {
     templates: [],
     extensions: [],
   },
+  startup: {
+    safeMode: false,
+    phase: "not-started",
+    durationMs: null,
+    capabilities: null,
+    vendorStatus: null,
+  },
+  performance: {
+    summary: null,
+  },
+  workers: {
+    status: null,
+  },
+  recovery: {
+    checkpoints: [],
+    journal: [],
+    lastCheckpointAt: null,
+    lastJournalAt: null,
+    status: "ready",
+    workspaceValidation: null,
+    lastSupportBundleAt: null,
+  },
   activeTab: "data",
   statuses: [],
   errors: [],

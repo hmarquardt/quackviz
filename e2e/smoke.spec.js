@@ -2,7 +2,7 @@ const { test, expect, gotoApp, waitForDuckDB, runBrowserUnitTests, selectWorkspa
 
 test("application loads, footer version is canonical, browser unit tests and self-test pass", async ({ page }) => {
   await gotoApp(page);
-  await expect(page.getByTestId("app-footer")).toContainText("v0.8.0");
+  await expect(page.getByTestId("app-footer")).toContainText("v0.9.0");
   await waitForDuckDB(page);
   await expect(page.getByTestId("data-status")).toContainText("DuckDB connected");
 

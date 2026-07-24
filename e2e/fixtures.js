@@ -104,8 +104,8 @@ exports.test = base.extend({
 
 exports.expect = expect;
 
-exports.gotoApp = async function gotoApp(page) {
-  await page.goto("/");
+exports.gotoApp = async function gotoApp(page, path = "/") {
+  await page.goto(path);
   await page.waitForFunction(() => window.__QUACKVIZ_E2E__?.appReady === true);
 };
 
@@ -115,7 +115,7 @@ async function selectWorkspaceTab(page, name) {
 }
 
 exports.waitForDuckDB = async function waitForDuckDB(page) {
-  await page.waitForFunction(() => window.__QUACKVIZ_E2E__?.dbReady === true, null, { timeout: 30_000 });
+  await page.waitForFunction(() => window.__QUACKVIZ_E2E__?.dbReady === true, null, { timeout: 60_000 });
 };
 
 exports.waitForRender = async function waitForRender(page) {

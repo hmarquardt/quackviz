@@ -35,9 +35,13 @@ export function elements() {
     vizStatus: $("vizStatus"),
     chart: $("chart"),
     copyDebug: $("copyDebug"),
+    copyPerformanceReport: $("copyPerformanceReport"),
+    exportSupportBundle: $("exportSupportBundle"),
+    validateWorkspace: $("validateWorkspace"),
     resetWorkspace: $("resetWorkspace"),
     selfTest: $("selfTest"),
     debugReport: $("debugReport"),
+    recoveryStatus: $("recoveryStatus"),
     selfTestResults: $("selfTestResults"),
     exportWorkspacePackage: $("exportWorkspacePackage"),
     exportStandaloneApp: $("exportStandaloneApp"),
@@ -356,6 +360,27 @@ function renderDebug(state) {
       echartsInstanceCount: renderer.instanceCount,
       mapInstanceCount: mapRenderer.instanceCount,
     },
+    startup: {
+      phase: state.startup.phase,
+      durationMs: state.startup.durationMs,
+      safeMode: state.startup.safeMode,
+      capabilityStatus: state.startup.capabilities?.status || "unknown",
+      missingRequiredCapabilities: state.startup.capabilities?.missingRequired || [],
+      missingOptionalCapabilities: state.startup.capabilities?.missingOptional || [],
+      vendoredDependencyStatus: state.startup.vendorStatus,
+      vendorManifestVersion: state.startup.vendorStatus?.manifest?.formatVersion || null,
+    },
+    performance: state.performance.summary,
+    workers: state.workers.status,
+    recovery: {
+      checkpointCount: state.recovery.checkpoints.length,
+      lastCheckpoint: state.recovery.lastCheckpointAt,
+      journalEntryCount: state.recovery.journal.length,
+      lastMigration: state.packaging.lastMigration,
+      workspaceValidationStatus: state.recovery.workspaceValidation?.valid === true ? "valid" : state.recovery.workspaceValidation ? "invalid" : "unknown",
+      recoveryStatus: state.recovery.status,
+      lastSupportBundleExport: state.recovery.lastSupportBundleAt,
+    },
     workspace: {
       id: state.workspace.id,
       dataSourceCount: state.workspace.dataSources.length,
@@ -487,6 +512,7 @@ function renderDebug(state) {
     },
   };
   elements().debugReport.textContent = JSON.stringify(report, null, 2);
+  elements().recoveryStatus.textContent = `Startup: ${report.startup.phase || "unknown"} · Capabilities: ${report.startup.capabilityStatus} · Workspace validation: ${report.recovery.workspaceValidationStatus} · Checkpoints: ${report.recovery.checkpointCount}`;
 }
 
 function labelType(type) {

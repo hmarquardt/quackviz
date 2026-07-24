@@ -1,21 +1,21 @@
 # QuackViz
 
-QuackViz is a static, browser-local DuckDB-WASM, Apache ECharts, and MapLibre GL JS analytical workspace. Current application version: `0.8.0`, build date `2026-07-24`.
+QuackViz is a static, browser-local DuckDB-WASM, Apache ECharts, and MapLibre GL JS analytical workspace. Current application version: `0.9.0`, build date `2026-07-24`.
 
-## Current Milestone: Portable Analytical Apps
+## Current Milestone: Operational Hardening
 
-QuackViz now includes a unified portable package format, standalone analytical app export, embedded artifact configuration, reusable templates, and declarative extension validation. The existing import, profiling, SQL, visualization, AI, dashboard, report, map, interaction, persistence, export, tests, diagnostics, and footer workflows remain in place.
+QuackViz now includes operational hardening primitives for performance measurement, task tracking, startup capability checks, workspace validation, recovery checkpoints, recovery journal entries, worker-contract validation, vendor-manifest diagnostics, sanitized support bundles, and release-gate testing. The existing import, profiling, SQL, visualization, AI, dashboard, report, map, interaction, persistence, export, tests, diagnostics, footer workflows, and portable-app capabilities remain in place.
 
-The portable-app workflow is:
+The operational workflow is:
 
 ```text
-workspace
--> select artifacts and data
--> validate references and privacy
--> create portable package
--> open in standalone or embedded mode
--> interact locally
--> optionally reopen in QuackViz for editing
+startup
+-> dependency and capability checks
+-> workspace validation
+-> worker and task diagnostics
+-> recoverable import/query/render workflows
+-> performance and recovery reporting
+-> automated regression validation
 ```
 
 Remote database connectivity, real-time streaming, collaboration, authentication, cloud synchronization, arbitrary callbacks, arbitrary JavaScript plugins, and server-hosted publishing are not implemented.
@@ -64,6 +64,7 @@ npm run test:e2e:ui
 npm run test:e2e:headed
 npm run test:e2e:debug
 npm run test:e2e:report
+npm run release:check
 ```
 
 The Playwright config starts QuackViz with:
@@ -80,6 +81,8 @@ E2E tests mock OpenRouter responses and do not make real AI provider requests. E
 
 The tests wait for explicit application-ready, DuckDB-ready, and render-ready state exposed by the app for automation. Unexpected page errors, fatal console errors, failed required local asset requests, DuckDB initialization failures, and worker initialization failures fail the test run. The small warning whitelist is documented in `e2e/fixtures.js`.
 
+`npm run release:check` is development-only release automation. It runs the Playwright release gate and does not change the production application, which remains a no-build static browser app.
+
 ## Exact Dependency Versions
 
 - Apache ECharts `6.0.0`
@@ -91,6 +94,28 @@ The tests wait for explicit application-ready, DuckDB-ready, and render-ready st
   - `https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css`
 
 Pinned versions are centralized in `js/constants.js`, shown in Debug, reflected in the persistent footer, and included in workspace, dashboard, report, AI, and map export metadata.
+
+## Operational Hardening
+
+QuackViz records named performance spans for startup, import, query, package, and worker operations through `js/performance-monitor.js`. The Debug view exposes recent timings, average query duration, slow recent operations, active task counts, worker status, recovery status, and workspace-validation status.
+
+Large dataset handling is conservative. The hardening constants define warning thresholds at 25 MB, 100 MB, 500 MB, and 1 GB, along with result limits for table previews, visualization results, dashboard cards, and report tables. QuackViz may warn or require reduced processing modes for datasets that are large relative to browser memory. The current UI exposes instrumentation and policy constants; broader low-memory import controls remain a follow-up.
+
+Task management is centralized in `js/task-manager.js`. Tasks track status, progress, cancellation, timeouts, parent/child relationships, obsolete-result handling, and cleanup. Existing dashboard, report, AI, and query cancellation paths remain in place.
+
+Worker hardening is represented by a versioned worker message contract and a small operational worker under `workers/data-worker.js`. Expensive DuckDB work already runs through DuckDB-WASM’s worker path. Additional data/package/spatial offloading can build on the same contract.
+
+Runtime dependency vendoring is tracked through `vendor/manifest.json` and `js/vendor.js`. The manifest currently reports the pinned CDN dependencies honestly as `cdn-pinned`; full local vendoring of DuckDB-WASM, ECharts, MapLibre, TopoJSON, and ZIP assets is not complete in this milestone. Offline mode disables external AI requests and remote basemap tiles but preserves local analytical functionality where assets are available.
+
+Startup diagnostics detect required and optional browser capabilities including WebAssembly, Web Workers, IndexedDB, Web Crypto, ResizeObserver, File API, Blob URLs, Canvas, WebGL, `structuredClone`, clipboard, downloads, and OPFS. Required failures should show an unsupported or degraded state rather than a blank page.
+
+Safe mode is available with `?safeMode=1`. Safe mode skips automatic workspace restoration, opens with recovery/debug state, and keeps stored data untouched. Safe mode does not delete or rewrite workspace data automatically.
+
+Workspace validation checks root structure, versions, duplicate IDs, broken query/visualization/dashboard/report references, repairable missing collections, and impossible active selections. Recovery support includes bounded checkpoints and journal entries for meaningful mutations. Automatic repair is intentionally constrained to optional metadata and active-selection cleanup; it does not rewrite SQL, specs, or report narrative.
+
+Support bundles are generated from Debug and are sanitized by default. They include app/build versions, browser information, capability status, dependency/vendor status, workspace object counts, validation results, performance summaries, worker status, storage status, recovery status, recent structured errors, and footer version. Support bundles exclude API keys and source data by default.
+
+Accessibility status: the interface uses labeled controls, tab panels, keyboard-accessible button alternatives for layout actions, chart/map summaries, and a reachable persistent footer. Automated accessibility coverage is not yet integrated with axe; manual and Playwright role/name coverage remain the current validation level.
 
 ## Interaction Model
 
@@ -382,7 +407,7 @@ Map visualization package export uses:
   "formatVersion": 1,
   "exportedBy": {
     "app": "QuackViz",
-    "appVersion": "0.8.0",
+    "appVersion": "0.9.0",
     "buildDate": "2026-07-24"
   },
   "query": {},
@@ -479,7 +504,7 @@ The standalone footer includes machine-readable runtime metadata:
 
 ```html
 <footer
-  data-quackviz-runtime-version="0.8.0"
+  data-quackviz-runtime-version="0.9.0"
   data-quackviz-package-version="1">
 </footer>
 ```
@@ -587,6 +612,31 @@ QuackViz does not silently execute AI-generated SQL.
 
 The persistent footer shows the canonical app version and build date. Debug, workspace metadata, dashboard exports, report exports, map exports, interaction diagnostics, package manifests, template metadata, extension diagnostics, standalone runtime metadata, and AI diagnostics use the same constants. “Copy deployment info” includes app version, build date, workspace ID, active dashboard ID, active map visualization ID, active interaction count, active drill path, and page URL.
 
+## Release Gates
+
+Release readiness is checked with browser unit tests, the application self-test, Playwright, Debug diagnostics, and the release checklist below. Playwright is a required release gate, not an optional experiment.
+
+1. Update APP_VERSION.
+2. Update BUILD_DATE.
+3. Update schema or contract versions only when required.
+4. Update CHANGELOG.md.
+5. Validate vendored dependencies and hashes.
+6. Run browser unit tests.
+7. Run the QuackViz self-test.
+8. Run Playwright Chromium.
+9. Run Firefox and WebKit smoke tests.
+10. Run automated accessibility checks.
+11. Review visual-regression changes.
+12. Run offline-mode tests.
+13. Run safe-mode and recovery tests.
+14. Run workspace and package migration tests.
+15. Run nested-path static-host tests.
+16. Verify no unexpected console errors.
+17. Verify no API keys or secrets in exports.
+18. Verify authoring and standalone footer versions.
+19. Verify README matches actual behavior.
+20. Commit, push, and confirm the deployed footer version.
+
 ## Accessibility and Performance
 
 Map views include nonvisual diagnostics: feature count, rejected rows, coordinate/profile summaries, region-match diagnostics, legend metadata, tooltip field lists, and attribution. The visual map is not claimed to be fully equivalent for screen readers.
@@ -612,6 +662,8 @@ Default limits:
 - Portable packages are exported as JSON and standalone apps as self-contained HTML. A ZIP container is not added in this milestone to preserve the no-install/no-build dependency model.
 - Standalone runtime rendering is intentionally presentation-oriented; full DuckDB-backed refresh from included data is represented by package data contracts and runtime metadata, with deeper runtime query execution reserved for a follow-up.
 - Column-pruned and pre-aggregated exports are packaging plans in this milestone, not full Parquet materialization.
+- Runtime dependencies are still loaded from pinned CDN URLs in the authoring app. The vendor manifest reports this honestly; full local asset vendoring remains release-readiness work.
+- Low-memory import modes, full table virtualization, visual-regression baselines, Firefox/WebKit smoke coverage, nested-path deployment tests, and axe-based accessibility automation are not complete in this slice.
 - Extension persistence is local in runtime state for now; richer user-extension management can build on the declarative validator.
 - No geocoding service is included.
 - No routing, streaming, collaboration, or remote database connectivity is included.
@@ -621,8 +673,8 @@ Default limits:
 
 Recommended focus:
 
-1. Add a ZIP container with optional vendored runtime assets while preserving no-build authoring.
-2. Execute packaged included-data queries in the standalone runtime with DuckDB-WASM.
-3. Add a package import inspector modal with selective optional-component import.
-4. Expand template application into a full mapping-and-approval workflow.
-5. Persist the declarative extension registry in IndexedDB and surface conflict resolution UI.
+1. Complete local vendoring for DuckDB-WASM, ECharts, MapLibre, TopoJSON, ZIP assets, and boundary files.
+2. Add offline, safe-mode, nested-path, Firefox/WebKit, accessibility, and visual-regression Playwright projects.
+3. Expand low-memory import modes, robust table pagination/virtualization, and chart-size safeguards.
+4. Execute packaged included-data queries in the standalone runtime with DuckDB-WASM.
+5. Add a package import inspector modal with selective optional-component import.

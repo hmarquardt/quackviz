@@ -1,0 +1,38 @@
+{
+  "format": "quackviz-vendor-manifest",
+  "formatVersion": 1,
+  "appVersion": "0.9.0",
+  "buildDate": "2026-07-24",
+  "dependencies": [
+    {
+      "name": "echarts",
+      "version": "6.0.0",
+      "path": null,
+      "license": "Apache-2.0",
+      "source": "https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.esm.min.js",
+      "sha256": null,
+      "usedBy": ["authoring", "standalone"],
+      "status": "cdn-pinned"
+    },
+    {
+      "name": "@duckdb/duckdb-wasm",
+      "version": "1.33.1-dev57.0",
+      "path": null,
+      "license": "MIT",
+      "source": "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm",
+      "sha256": null,
+      "usedBy": ["authoring", "standalone"],
+      "status": "cdn-pinned"
+    },
+    {
+      "name": "maplibre-gl",
+      "version": "5.24.0",
+      "path": null,
+      "license": "BSD-3-Clause",
+      "source": "https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/+esm",
+      "sha256": null,
+      "usedBy": ["authoring", "standalone"],
+      "status": "cdn-pinned"
+    }
+  ]
+}

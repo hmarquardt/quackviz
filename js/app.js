@@ -1,4 +1,4 @@
-import { APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL } from "./constants.js";
+import { APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL, TASK_TIMEOUTS } from "./constants.js";
 import { runAiAction, fetchOpenRouterModels } from "./ai.js";
 import { buildAiContext, contextPreview } from "./ai-context.js";
 import { AI_CONTRACTS } from "./ai-contracts.js";
@@ -8,7 +8,7 @@ import { explainSql, previewSql as previewAiSql, validateSqlSafety } from "./ai-
 import { validateAiResponse, validateRepair } from "./ai-validate.js";
 import { addCard, addDashboard, createDashboard, deleteDashboard as deleteDashboardModel, duplicateCard, duplicateDashboard as duplicateDashboardModel, findDashboard, moveCard, removeCard, resizeCard, updateDashboard } from "./dashboard.js";
 import { createSnapshotHtml, exportDashboardPackage, importDashboardPackage } from "./dashboard-export.js";
-import { invalidateDashboardCache, refreshCard, refreshDashboard as runDashboardRefresh } from "./dashboard-runner.js";
+import { getDashboardRunnerStatus, invalidateDashboardCache, refreshCard, refreshDashboard as runDashboardRefresh } from "./dashboard-runner.js";
 import { createInteractionBus } from "./interaction-bus.js";
 import { addInteractionBinding, normalizeInteractionBinding, validateInteractionBinding } from "./interaction-bindings.js";
 import { createInteractionEvent, validateInteractionEvent } from "./interaction-events.js";
@@ -22,9 +22,17 @@ import { loadIncludedSalesSample } from "./import.js";
 import { exportMapVisualizationPackage } from "./map-export.js";
 import { createPortablePackage, inspectPortablePackage, validatePortablePackage, verifyPortablePackageIntegrity } from "./package.js";
 import { createStandaloneHtml, runtimeHarnessLoad } from "./standalone-runtime.js";
+import { observeMemory } from "./memory-monitor.js";
+import { performanceMonitor } from "./performance-monitor.js";
+import { addJournalEntry, createCheckpoint, createRecoveryState, recoverySummary } from "./recovery.js";
 import { createEmbedConfig, createIframeSnippet, validateEmbedMessage } from "./embed.js";
+import { createStartupTracker, detectCapabilities } from "./startup-diagnostics.js";
+import { createSupportBundle } from "./support-bundle.js";
 import { applyTemplate, BUILT_IN_TEMPLATES, exportTemplate } from "./templates.js";
+import { taskManager } from "./task-manager.js";
 import { extensionDiagnostics, installExtension, validateExtension } from "./extensions.js";
+import { loadVendorManifest, validateVendorManifest } from "./vendor.js";
+import { createWorkerManager, validateWorkerMessage } from "./worker-manager.js";
 import { compileMapSpec } from "./map-compiler.js";
 import { loadBoundary } from "./map-boundaries.js";
 import { rowsToPointGeoJson } from "./map-data.js";
@@ -40,6 +48,7 @@ import { refreshReport as runReportRefresh, refreshSection as runReportSectionRe
 import { addError, addStatus, markTableLoaded, notify, setActive, setCurrentOption, setCurrentResult, setCurrentSpec, setWorkspace, state, subscribe, updateWorkspace } from "./state.js";
 import { getOpenRouterApiKey, initializeStorage, loadAiModelCache, loadThemePreference, loadWorkspace, resetStoredWorkspace, saveAiModelCache, saveThemePreference, saveTemporaryWorkspace, saveWorkspace, saveWorkspaceDebounced, setOpenRouterApiKey } from "./storage.js";
 import { addAiHistory, addOrUpdateDataSource, addOrUpdateQuery, addOrUpdateVisualization, createWorkspace, hydrateWorkspace } from "./workspace.js";
+import { migrateWorkspace, validateWorkspaceIntegrity } from "./workspace-validation.js";
 import { defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
 import { compileVisualizationSpec } from "./viz-compiler.js";
 import { disposeChartInstance, renderVisualization, showEmpty } from "./viz-renderer.js";
@@ -51,7 +60,11 @@ let currentAiAbortController = null;
 let currentDashboardAbortController = null;
 let currentReportAbortController = null;
 const interactionBus = createInteractionBus();
+const startupTracker = createStartupTracker();
+const workerManager = createWorkerManager({ workerUrl: "workers/data-worker.js" });
 state.interaction.subscriptionCount = interactionBus.subscriptionCount();
+state.startup.safeMode = new URLSearchParams(window.location.search).get("safeMode") === "1";
+state.recovery = createRecoveryState();
 window.__QUACKVIZ_E2E__ = { appReady: false, dbReady: false, renderReady: false, state, appVersion: APP_VERSION };
 
 window.addEventListener("error", (event) => addError("app", "window-error", event.error || new Error(event.message)));
@@ -72,14 +85,35 @@ subscribe((next) => {
 await boot();
 
 async function boot() {
+  startupTracker.phase("Load configuration");
+  state.startup.phase = "Load configuration";
   bindEvents();
+  state.startup.capabilities = detectCapabilities(window);
+  startupTracker.phase("Check capabilities", state.startup.capabilities.status);
   try {
+    startupTracker.phase("Load vendor manifest");
+    const manifest = await loadVendorManifest();
+    const vendorValidation = validateVendorManifest(manifest);
+    state.startup.vendorStatus = { manifest, validation: vendorValidation };
+  } catch (error) {
+    state.startup.vendorStatus = { manifest: null, validation: { valid: false, errors: [{ path: "vendor", message: error.message }], warnings: [] } };
+    addError("startup", "vendor-manifest", error);
+  }
+  try {
+    startupTracker.phase("Open IndexedDB");
     await initializeStorage();
     state.storageStatus.indexedDb = "available";
-    const workspace = await loadWorkspace();
-    const preferredTheme = loadThemePreference();
-    if (preferredTheme) workspace.settings.theme = preferredTheme;
-    setWorkspace(workspace);
+    if (!state.startup.safeMode) {
+      startupTracker.phase("Restore workspace");
+      const workspace = await loadWorkspace();
+      state.recovery.workspaceValidation = validateWorkspaceIntegrity(workspace);
+      const preferredTheme = loadThemePreference();
+      if (preferredTheme) workspace.settings.theme = preferredTheme;
+      setWorkspace(workspace);
+    } else {
+      state.recovery.status = "safe-mode";
+      addStatus("recovery", "safe-mode", "Safe mode is active. Stored workspace restoration was skipped.");
+    }
   } catch (error) {
     state.storageStatus.indexedDb = `error: ${error.message}`;
     addError("storage", "restore-workspace", error);
@@ -92,13 +126,20 @@ async function boot() {
     state.ai.modelList = modelCache.models;
     state.ai.modelListRefreshedAt = modelCache.refreshedAt;
   }
+  startupTracker.phase("Restore table availability");
   await restoreTableAvailability();
   syncAiSettingsToUi();
   refreshAiContextPreview();
+  state.startup.phase = "Render application";
+  state.startup.durationMs = startupTracker.report().durationMs;
+  state.performance.summary = performanceMonitor.summary();
+  state.workers.status = workerManager.status();
   window.__QUACKVIZ_E2E__.appReady = true;
   document.documentElement.dataset.appReady = "true";
+  document.body.dataset.appState = state.startup.capabilities?.missingRequired?.length ? "error" : state.startup.safeMode ? "degraded" : "ready";
+  document.body.dataset.workspaceState = state.startup.safeMode ? "safe-mode" : "loaded";
   notify();
-  initializeDatabase().then((status) => {
+  initializeDatabase({ timeoutMs: TASK_TIMEOUTS.duckdbInitMs }).then((status) => {
     state.dbStatus = status;
     window.__QUACKVIZ_E2E__.dbReady = status.connection === "connected";
     document.documentElement.dataset.duckdbReady = window.__QUACKVIZ_E2E__.dbReady ? "true" : "false";
@@ -142,6 +183,9 @@ function bindEvents() {
   el.exportMapPackage.addEventListener("click", exportCurrentMapPackage);
   el.copySpec.addEventListener("click", () => copyText(el.specEditor.value).catch((error) => addError("ui", "copy-spec", error)));
   el.copyDebug.addEventListener("click", () => copyText(el.debugReport.textContent).catch((error) => addError("ui", "copy-debug", error)));
+  el.copyPerformanceReport.addEventListener("click", () => copyText(JSON.stringify(performanceMonitor.summary(), null, 2)).catch((error) => addError("ui", "copy-performance", error)));
+  el.exportSupportBundle.addEventListener("click", exportSupportBundle);
+  el.validateWorkspace.addEventListener("click", validateCurrentWorkspace);
   el.resetWorkspace.addEventListener("click", resetWorkspace);
   el.selfTest.addEventListener("click", runSelfTest);
   el.exportWorkspacePackage.addEventListener("click", exportWorkspacePortablePackage);
@@ -229,8 +273,11 @@ async function restoreTableAvailability() {
 }
 
 async function loadSalesSample() {
+  const task = taskManager.create("sample-import", { label: "Load sample sales data" });
+  const span = performanceMonitor.start("sample-import", { fileName: "sales.csv" });
   try {
     addStatus("sample", "load", "Loading sample sales data...");
+    taskManager.progress(task.id, 0.25, "Importing sample into DuckDB.");
     const source = await loadIncludedSalesSample();
     updateWorkspace((workspace) => {
       addOrUpdateDataSource(workspace, source);
@@ -242,16 +289,28 @@ async function loadSalesSample() {
     selectTab("data");
     await saveWorkspace(state.workspace);
     state.storageStatus.lastSavedAt = nowIso();
+    addJournalEntry(state.recovery, { workspaceId: state.workspace.id, operation: "import-sample", objectId: source.id });
+    await createCheckpoint(state.recovery, state.workspace, "post-sample-import");
+    taskManager.complete(task.id, { tableName: source.tableName, rowCount: source.rowCount });
+    span.finish({ success: true, rowCount: source.rowCount });
+    refreshOperationalDiagnostics();
     addStatus("sample", "load", "Sample sales data loaded.");
   } catch (error) {
+    taskManager.error(task.id, error);
+    span.error(error);
     addError("sample", "load", error);
+    refreshOperationalDiagnostics();
   }
 }
 
 async function runEditorSql() {
   const sql = elements().sqlEditor.value.trim();
   if (!sql) return;
+  const span = performanceMonitor.start("duckdb-query", { source: "editor", activeQueryId: state.workspace.active.queryId });
   const result = await runQuery(sql, state.workspace.active.queryId);
+  if (result.error) span.error(new Error(result.error.message));
+  else span.finish({ success: true, rowCount: result.rowCount });
+  refreshOperationalDiagnostics();
   setCurrentResult(result);
   if (result.error) {
     addError("duckdb", "execute-query", new Error(result.error.message));
@@ -270,6 +329,37 @@ async function runEditorSql() {
   setCurrentSpec(spec);
   await rebuildVisualization();
   selectTab("sql");
+}
+
+function refreshOperationalDiagnostics() {
+  const rendererCount = Number(document.querySelectorAll("canvas").length || 0);
+  state.performance.summary = {
+    ...performanceMonitor.summary(),
+    memory: observeMemory({ cacheEntries: state.performance.summary?.cacheEntries || 0, echartsInstances: rendererCount, mapInstances: 0, workerCount: workerManager.status().workerCount }),
+  };
+  state.workers.status = workerManager.status();
+  state.recovery.workspaceValidation = validateWorkspaceIntegrity(state.workspace);
+}
+
+function validateCurrentWorkspace() {
+  state.recovery.workspaceValidation = validateWorkspaceIntegrity(state.workspace);
+  addStatus("recovery", "validate-workspace", state.recovery.workspaceValidation.valid ? "Workspace validation passed." : "Workspace validation found issues.");
+  notify();
+}
+
+function exportSupportBundle() {
+  const bundle = createSupportBundle({
+    state,
+    capabilities: state.startup.capabilities,
+    vendorStatus: state.startup.vendorStatus,
+    performanceSummary: performanceMonitor.summary(),
+    workerStatus: workerManager.status(),
+    recoverySummary: recoverySummary(state.recovery),
+  });
+  state.recovery.lastSupportBundleAt = nowIso();
+  elements().packageInspection.textContent = JSON.stringify(bundle, null, 2);
+  downloadBlob(`quackviz-support-${state.workspace.id}.json`, JSON.stringify(bundle, null, 2), "application/json");
+  notify();
 }
 
 function saveCurrentQuery() {
@@ -1872,6 +1962,87 @@ async function runSelfTest() {
   await step("Migrate older package version", () => {
     const migrated = validatePortablePackage({ ...portablePackage, formatVersion: 0, manifest: { ...portablePackage.manifest, packageMode: "standalone", dataMode: "external" } });
     if (!migrated.valid) throw new Error(migrated.errors[0]?.message || "Migration failed.");
+  });
+  await step("Capability detection", () => {
+    const capabilities = detectCapabilities(window);
+    if (!capabilities.requiredCapabilities.length || capabilities.missingRequired.length) throw new Error("Required capability missing.");
+  });
+  await step("Local vendor manifest validation", async () => {
+    const manifest = await loadVendorManifest();
+    const validation = validateVendorManifest(manifest);
+    if (!validation.valid) throw new Error(validation.errors[0]?.message || "Vendor manifest invalid.");
+  });
+  await step("Dependency hash validation reports non-vendored dependencies", async () => {
+    const manifest = await loadVendorManifest();
+    const validation = validateVendorManifest(manifest, { requireLocal: true });
+    if (!validation.errors.some((error) => error.path.includes(".path"))) throw new Error("Non-vendored dependency status was not reported.");
+  });
+  await step("Worker round trip", async () => {
+    const response = await workerManager.run("echo", { ok: true });
+    if (!response.ok) throw new Error("Worker echo failed.");
+  });
+  await step("Worker contract validation", () => {
+    const valid = validateWorkerMessage({ contract: "quackviz-worker-task", contractVersion: 1, taskId: "task_1", type: "echo", payload: {} });
+    const invalid = validateWorkerMessage({ contract: "quackviz-worker-task", contractVersion: 99, taskId: "task_1" });
+    if (!valid.valid || invalid.valid) throw new Error("Worker message validation failed.");
+  });
+  await step("Task timeout", async () => {
+    const managerTask = taskManager.create("timeout-self-test", { timeoutMs: 1 });
+    await new Promise((resolve) => setTimeout(resolve, 5));
+    if (taskManager.get(managerTask.id).status !== "timed-out") throw new Error("Task did not time out.");
+  });
+  await step("Performance timing span", () => {
+    const span = performanceMonitor.start("self-test-performance");
+    const item = span.finish({ success: true });
+    if (!Number.isFinite(item.durationMs)) throw new Error("Performance span did not finish.");
+  });
+  await step("Workspace validation", () => {
+    const validation = validateWorkspaceIntegrity(state.workspace);
+    if (!validation.valid) throw new Error(validation.errors[0]?.message || "Workspace invalid.");
+  });
+  await step("Checkpoint creation and restore", async () => {
+    const checkpoint = await createCheckpoint(state.recovery, state.workspace, "self-test");
+    const restored = state.recovery.checkpoints.find((item) => item.id === checkpoint.id)?.workspace;
+    if (restored.id !== state.workspace.id) throw new Error("Checkpoint restore payload missing.");
+  });
+  await step("Recovery journal entry", () => {
+    const entry = addJournalEntry(state.recovery, { workspaceId: state.workspace.id, operation: "self-test" });
+    if (!entry.id || state.recovery.journal[0].id !== entry.id) throw new Error("Journal entry missing.");
+  });
+  await step("Migration dry run", () => {
+    const result = migrateWorkspace({ workspace: { ...state.workspace, version: 0 }, fromVersion: 0, dryRun: true });
+    if (!result.dryRun || !result.report.length) throw new Error("Migration dry run failed.");
+  });
+  await step("Migration execution", () => {
+    const result = migrateWorkspace({ workspace: { ...state.workspace, version: 0 }, fromVersion: 0 });
+    if (!result.migrated || result.workspace.version !== 1) throw new Error("Migration execution failed.");
+  });
+  await step("Corruption detection", () => {
+    const validation = validateWorkspaceIntegrity({ ...state.workspace, queries: [{ id: "dup" }, { id: "dup" }] });
+    if (validation.valid) throw new Error("Duplicate ID corruption was not detected.");
+  });
+  await step("Safe-mode initialization flag", () => {
+    if (typeof state.startup.safeMode !== "boolean") throw new Error("Safe mode status missing.");
+  });
+  await step("Support-bundle sanitization", () => {
+    const bundle = createSupportBundle({ state, capabilities: state.startup.capabilities, vendorStatus: state.startup.vendorStatus, performanceSummary: performanceMonitor.summary(), workerStatus: workerManager.status(), recoverySummary: recoverySummary(state.recovery) });
+    if (JSON.stringify(bundle).includes(getOpenRouterApiKey()) && getOpenRouterApiKey()) throw new Error("Support bundle leaked API key.");
+  });
+  await step("Result-cache eviction status", () => {
+    if (!Number.isFinite(getDashboardRunnerStatus().cacheEntries)) throw new Error("Dashboard cache status unavailable.");
+  });
+  await step("ECharts disposal", () => {
+    disposeChartInstance("self-test-dispose");
+  });
+  await step("MapLibre disposal", () => {
+    disposeMapInstance("self-test-map-dispose");
+  });
+  await step("Object URL cleanup", () => {
+    const url = URL.createObjectURL(new Blob(["ok"]));
+    URL.revokeObjectURL(url);
+  });
+  await step("Offline dependency resolution status", () => {
+    if (!state.startup.vendorStatus?.validation?.warnings?.length) throw new Error("Offline dependency limitation was not reported.");
   });
   await step("Verify standalone footer version", () => {
     if (!createStandaloneHtml(portablePackage).includes(`Runtime ${APP_VERSION}`)) throw new Error("Standalone footer version mismatch.");

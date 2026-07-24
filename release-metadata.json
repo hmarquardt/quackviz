@@ -1,0 +1,15 @@
+{
+  "app": "QuackViz",
+  "version": "0.9.0",
+  "buildDate": "2026-07-24",
+  "workspaceSchemaVersion": 1,
+  "visualizationSpecVersion": 1,
+  "mapSpecVersion": 1,
+  "dashboardVersion": 1,
+  "reportVersion": 1,
+  "interactionVersion": 1,
+  "packageFormatVersion": 1,
+  "templateFormatVersion": 1,
+  "extensionFormatVersion": 1,
+  "standaloneRuntimeContractVersion": 1
+}

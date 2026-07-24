@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.8.0";
+export const APP_VERSION = "0.9.0";
 export const BUILD_DATE = "2026-07-24";
 export const WORKSPACE_SCHEMA_VERSION = 1;
 export const VIZ_SPEC_VERSION = 1;
@@ -73,6 +73,32 @@ export const INTERACTION_MAX_PROPAGATION_DEPTH = 4;
 export const PACKAGE_MODES = ["workspace-backup", "standalone", "dashboard-only", "report-only", "visualization", "template", "embed"];
 export const PACKAGE_DATA_MODES = ["included", "external", "snapshot-only", "pre-aggregated"];
 export const PACKAGE_SIZE_WARNINGS = [25 * 1024 * 1024, 100 * 1024 * 1024, 500 * 1024 * 1024];
+export const VENDOR_MANIFEST_URL = "vendor/manifest.json";
+export const PERFORMANCE_HISTORY_LIMIT = 100;
+export const TASK_TIMEOUTS = {
+  dependencyLoadMs: 15000,
+  workerReadyMs: 5000,
+  duckdbInitMs: 45000,
+  queryMs: 30000,
+  importMs: 60000,
+  packageMs: 60000,
+};
+export const LARGE_FILE_THRESHOLDS = {
+  infoBytes: 25 * 1024 * 1024,
+  cautionBytes: 100 * 1024 * 1024,
+  strongWarningBytes: 500 * 1024 * 1024,
+  acknowledgementBytes: 1024 * 1024 * 1024,
+};
+export const RESULT_LIMITS = {
+  tablePreviewRows: 500,
+  visualizationRows: 50000,
+  dashboardCardRows: 20000,
+  reportTableRows: 50,
+};
+export const RECOVERY_LIMITS = {
+  checkpoints: 4,
+  journalEntries: 100,
+};
 
 export const OPENROUTER = {
   provider: "openrouter",

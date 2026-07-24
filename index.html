@@ -14,7 +14,7 @@
             <h1>QuackViz</h1>
             <p>Static DuckDB visual analytics</p>
           </div>
-          <select id="themeSelect" class="theme-select" aria-label="Theme">
+          <select id="themeSelect" class="theme-select" aria-label="Theme" data-testid="theme-select">
             <option value="system">System</option>
             <option value="light">Light</option>
             <option value="dark">Dark</option>
@@ -23,38 +23,38 @@
 
         <section class="panel">
           <h2>Data Sources</h2>
-          <button id="loadSample" class="primary wide">Load sample sales data</button>
-          <div id="sourceList" class="object-list"></div>
+          <button id="loadSample" class="primary wide" data-testid="load-sample">Load sample sales data</button>
+          <div id="sourceList" class="object-list" data-testid="source-list"></div>
         </section>
 
         <section class="panel">
           <h2>Saved Queries</h2>
-          <div id="savedQueries" class="object-list"></div>
+          <div id="savedQueries" class="object-list" data-testid="saved-queries"></div>
         </section>
 
         <section class="panel">
           <h2>Saved Visualizations</h2>
-          <div id="savedVisualizations" class="object-list"></div>
+          <div id="savedVisualizations" class="object-list" data-testid="saved-visualizations"></div>
         </section>
       </aside>
 
       <main class="pane center-pane">
         <nav class="tabs" aria-label="Workspace modes">
-          <button class="tab active" data-tab="data">Data</button>
-          <button class="tab" data-tab="sql">SQL</button>
-          <button class="tab" data-tab="visualize">Visualize</button>
-          <button class="tab" data-tab="dashboard">Dashboard</button>
-          <button class="tab" data-tab="report">Report</button>
-          <button class="tab" data-tab="ai">AI</button>
-          <button class="tab" data-tab="debug">Debug</button>
+          <button class="tab active" data-tab="data" data-testid="tab-data">Data</button>
+          <button class="tab" data-tab="sql" data-testid="tab-sql">SQL</button>
+          <button class="tab" data-tab="visualize" data-testid="tab-visualize">Visualize</button>
+          <button class="tab" data-tab="dashboard" data-testid="tab-dashboard">Dashboard</button>
+          <button class="tab" data-tab="report" data-testid="tab-report">Report</button>
+          <button class="tab" data-tab="ai" data-testid="tab-ai">AI</button>
+          <button class="tab" data-tab="debug" data-testid="tab-debug">Debug</button>
         </nav>
 
         <section id="dataTab" class="tab-panel active">
           <div class="section-head">
             <h2>Data</h2>
-            <span id="dataStatus" class="status">Starting...</span>
+            <span id="dataStatus" class="status" data-testid="data-status">Starting...</span>
           </div>
-          <div id="schemaView" class="schema-grid"></div>
+          <div id="schemaView" class="schema-grid" data-testid="schema-view"></div>
         </section>
 
         <section id="sqlTab" class="tab-panel">
@@ -63,26 +63,26 @@
             <div class="button-row">
               <button id="clearSql">Clear</button>
               <button id="copySql">Copy SQL</button>
-              <button id="saveQuery">Save Query</button>
-              <button id="runSql" class="primary">Run</button>
+              <button id="saveQuery" data-testid="save-query">Save Query</button>
+              <button id="runSql" class="primary" data-testid="run-sql">Run</button>
             </div>
           </div>
-          <label>Query name <input id="queryName" value="Monthly revenue"></label>
-          <textarea id="sqlEditor" spellcheck="false"></textarea>
+          <label>Query name <input id="queryName" value="Monthly revenue" data-testid="query-name"></label>
+          <textarea id="sqlEditor" spellcheck="false" data-testid="sql-editor"></textarea>
           <div class="query-meta">
             <span id="queryRuntime">Runtime: -</span>
-            <span id="queryRows">Rows: -</span>
+            <span id="queryRows" data-testid="query-rows">Rows: -</span>
             <span id="queryError" class="error-text"></span>
           </div>
-          <div id="resultsTable" class="result-table empty-state">Run a query to see results.</div>
+          <div id="resultsTable" class="result-table empty-state" data-testid="results-table">Run a query to see results.</div>
         </section>
 
         <section id="visualizeTab" class="tab-panel">
           <div class="section-head">
             <h2>Visualize</h2>
-            <span id="vizStatus" class="status">Run a query to build a visualization.</span>
+            <span id="vizStatus" class="status" data-testid="viz-status">Run a query to build a visualization.</span>
           </div>
-          <div id="chart" class="chart" role="img" aria-label="Visualization canvas">
+          <div id="chart" class="chart" role="img" aria-label="Visualization canvas" data-testid="chart">
             <div class="empty-state">No chart to display.</div>
           </div>
         </section>
@@ -147,17 +147,17 @@
         <section id="dashboardTab" class="tab-panel">
           <div class="section-head">
             <h2>Dashboard</h2>
-            <span id="dashboardStatus" class="status">Create or select a dashboard.</span>
+            <span id="dashboardStatus" class="status" data-testid="dashboard-status">Create or select a dashboard.</span>
           </div>
           <div class="dashboard-toolbar">
             <label>Dashboard <select id="dashboardSelect"></select></label>
-            <button id="newDashboard">New</button>
+            <button id="newDashboard" data-testid="new-dashboard">New</button>
             <button id="renameDashboard">Rename</button>
             <button id="duplicateDashboard">Duplicate</button>
             <button id="deleteDashboard" class="danger">Delete</button>
             <label>Add visualization <select id="dashboardVizChooser"></select></label>
-            <button id="addDashboardViz">Add</button>
-            <button id="refreshDashboard" class="primary">Refresh all</button>
+            <button id="addDashboardViz" data-testid="add-dashboard-viz">Add</button>
+            <button id="refreshDashboard" class="primary" data-testid="refresh-dashboard">Refresh all</button>
             <button id="refreshFailedCards">Refresh failed</button>
             <button id="cancelDashboardRefresh">Cancel</button>
             <button id="addRegionFilter">Add region filter</button>
@@ -168,52 +168,52 @@
             <button id="copyDeploymentInfo">Copy deployment info</button>
           </div>
           <div class="interaction-toolbar">
-            <label>Source card <select id="interactionSourceCard"></select></label>
-            <label>Source field <input id="interactionSourceField" placeholder="region"></label>
-            <label>Selection value <input id="interactionValue" placeholder="East"></label>
-            <label>Action <select id="interactionAction">
+            <label>Source card <select id="interactionSourceCard" data-testid="interaction-source-card"></select></label>
+            <label>Source field <input id="interactionSourceField" placeholder="region" data-testid="interaction-source-field"></label>
+            <label>Selection value <input id="interactionValue" placeholder="East" data-testid="interaction-value"></label>
+            <label>Action <select id="interactionAction" data-testid="interaction-action">
               <option value="filter">Cross-filter</option>
               <option value="highlight">Linked highlight</option>
             </select></label>
-            <button id="addInteractionBinding">Save binding</button>
-            <button id="emitInteraction">Apply selection</button>
+            <button id="addInteractionBinding" data-testid="add-interaction-binding">Save binding</button>
+            <button id="emitInteraction" data-testid="emit-interaction">Apply selection</button>
             <button id="clearInteractions">Clear interactions</button>
           </div>
-          <div id="interactionStateBar" class="dashboard-filter-bar"></div>
+          <div id="interactionStateBar" class="dashboard-filter-bar" data-testid="interaction-state"></div>
           <div id="dashboardFilterBar" class="dashboard-filter-bar"></div>
-          <div id="dashboardCanvas" class="dashboard-grid" aria-live="polite"></div>
+          <div id="dashboardCanvas" class="dashboard-grid" aria-live="polite" data-testid="dashboard-canvas"></div>
         </section>
 
         <section id="reportTab" class="tab-panel">
           <div class="section-head">
             <h2>Report</h2>
-            <span id="reportStatus" class="status">Create or select a report.</span>
+            <span id="reportStatus" class="status" data-testid="report-status">Create or select a report.</span>
           </div>
           <div class="report-workspace">
             <aside class="report-sidebar">
               <div class="button-row wrap">
-                <button id="newReport">New</button>
+                <button id="newReport" data-testid="new-report">New</button>
                 <button id="renameReport">Rename</button>
                 <button id="duplicateReport">Duplicate</button>
                 <button id="deleteReport" class="danger">Delete</button>
               </div>
               <label>Saved reports <select id="reportSelect"></select></label>
-              <label>Add section <select id="reportSectionType"></select></label>
-              <button id="addReportSection" class="wide">Add section</button>
-              <div id="reportOutline" class="object-list"></div>
+              <label>Add section <select id="reportSectionType" data-testid="report-section-type"></select></label>
+              <button id="addReportSection" class="wide" data-testid="add-report-section">Add section</button>
+              <div id="reportOutline" class="object-list" data-testid="report-outline"></div>
             </aside>
-            <article id="reportPreview" class="report-preview"></article>
+            <article id="reportPreview" class="report-preview" data-testid="report-preview"></article>
             <aside class="report-inspector">
               <h2>Inspector</h2>
               <label>Title <input id="reportSectionTitle"></label>
               <label>Narrative <textarea id="reportSectionNarrative"></textarea></label>
-              <label>Source visualization <select id="reportSourceViz"></select></label>
-              <label>Source query <select id="reportSourceQuery"></select></label>
-              <label>Source dashboard <select id="reportSourceDashboard"></select></label>
+              <label>Source visualization <select id="reportSourceViz" data-testid="report-source-viz"></select></label>
+              <label>Source query <select id="reportSourceQuery" data-testid="report-source-query"></select></label>
+              <label>Source dashboard <select id="reportSourceDashboard" data-testid="report-source-dashboard"></select></label>
               <label><input id="reportSqlVisible" type="checkbox"> Show SQL</label>
               <label>Table row limit <input id="reportTableLimit" type="number" min="1" max="500"></label>
               <div class="button-row wrap">
-                <button id="refreshReportSection">Refresh section</button>
+                <button id="refreshReportSection" data-testid="refresh-report-section">Refresh section</button>
                 <button id="refreshReport">Refresh report</button>
                 <button id="exportReportHtml">HTML</button>
                 <button id="exportReportMarkdown">Markdown</button>
@@ -233,41 +233,41 @@
             <div class="button-row">
               <button id="copyDebug">Copy debug report</button>
               <button id="resetWorkspace" class="danger">Reset workspace</button>
-              <button id="selfTest" class="primary">Run self-test</button>
+              <button id="selfTest" class="primary" data-testid="self-test">Run self-test</button>
             </div>
           </div>
           <div class="panel package-panel">
             <h2>Portable Packages</h2>
             <div class="button-row wrap">
-              <button id="exportWorkspacePackage">Export workspace package</button>
-              <button id="exportStandaloneApp">Export standalone app</button>
+              <button id="exportWorkspacePackage" data-testid="export-workspace-package">Export workspace package</button>
+              <button id="exportStandaloneApp" data-testid="export-standalone-app">Export standalone app</button>
               <button id="copyEmbedSnippet">Copy embed snippet</button>
               <button id="exportTemplate">Export built-in template</button>
               <button id="validateExtension">Validate sample extension</button>
             </div>
-            <pre id="packageInspection" class="debug-report"></pre>
+            <pre id="packageInspection" class="debug-report" data-testid="package-inspection"></pre>
           </div>
-          <pre id="debugReport" class="debug-report"></pre>
-          <div id="selfTestResults" class="test-results"></div>
+          <pre id="debugReport" class="debug-report" data-testid="debug-report"></pre>
+          <div id="selfTestResults" class="test-results" data-testid="self-test-results"></div>
         </section>
       </main>
 
       <aside class="pane right-pane">
         <section class="panel">
           <h2>Visualization Builder</h2>
-          <label>Chart type <select id="chartType"></select></label>
-          <label>X field <select id="xField"></select></label>
-          <label>Y field <select id="yField"></select></label>
+          <label>Chart type <select id="chartType" data-testid="chart-type"></select></label>
+          <label>X field <select id="xField" data-testid="x-field"></select></label>
+          <label>Y field <select id="yField" data-testid="y-field"></select></label>
           <div id="mapBuilderControls" class="map-builder-controls">
-            <label>Latitude field <select id="mapLatitudeField"></select></label>
-            <label>Longitude field <select id="mapLongitudeField"></select></label>
-            <label>Region field <select id="mapRegionField"></select></label>
-            <label>Value field <select id="mapValueField"></select></label>
-            <label>Label field <select id="mapLabelField"></select></label>
-            <label>Category color <select id="mapColorField"></select></label>
-            <label>Numeric size <select id="mapSizeField"></select></label>
-            <label>Boundary <select id="mapBoundary"></select></label>
-            <label>Basemap <select id="mapBasemap">
+            <label>Latitude field <select id="mapLatitudeField" data-testid="map-latitude-field"></select></label>
+            <label>Longitude field <select id="mapLongitudeField" data-testid="map-longitude-field"></select></label>
+            <label>Region field <select id="mapRegionField" data-testid="map-region-field"></select></label>
+            <label>Value field <select id="mapValueField" data-testid="map-value-field"></select></label>
+            <label>Label field <select id="mapLabelField" data-testid="map-label-field"></select></label>
+            <label>Category color <select id="mapColorField" data-testid="map-color-field"></select></label>
+            <label>Numeric size <select id="mapSizeField" data-testid="map-size-field"></select></label>
+            <label>Boundary <select id="mapBoundary" data-testid="map-boundary"></select></label>
+            <label>Basemap <select id="mapBasemap" data-testid="map-basemap">
               <option value="blank">Blank local background</option>
               <option value="light">Default light</option>
               <option value="dark">Default dark</option>
@@ -285,7 +285,7 @@
             <label><input id="zoom" type="checkbox" checked> Zoom</label>
             <label><input id="legend" type="checkbox"> Legend</label>
           </div>
-          <button id="saveViz" class="primary wide">Save Visualization</button>
+          <button id="saveViz" class="primary wide" data-testid="save-viz">Save Visualization</button>
           <div id="vizErrors" class="validation-list"></div>
         </section>
 
@@ -299,7 +299,7 @@
         </section>
       </aside>
     </div>
-    <footer class="app-footer">QuackViz <span id="footerVersion"></span></footer>
+    <footer class="app-footer" data-testid="app-footer">QuackViz <span id="footerVersion"></span></footer>
     <script type="module" src="js/app.js"></script>
   </body>
 </html>

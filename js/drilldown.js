@@ -11,7 +11,7 @@ export function createDrilldown(input = {}) {
     enabled: input.enabled !== false,
     hierarchy: Array.isArray(input.hierarchy) ? input.hierarchy : [],
     currentLevel: Number(input.currentLevel || 0),
-    path: Array.isArray(input.path) ? input.path : [],
+    path: Array.isArray(input.path) ? input.path.map((item) => ({ ...item })) : [],
   };
 }
 
@@ -22,16 +22,20 @@ export function buildBreadcrumb(path = []) {
 export function drillDown(drill, value) {
   const next = createDrilldown(drill);
   const level = next.hierarchy[next.currentLevel] || { field: next.triggerField, label: next.triggerField };
-  next.path.push({ field: level.field, label: String(value), value });
-  next.currentLevel = Math.min(next.currentLevel + 1, Math.max(0, next.hierarchy.length - 1));
-  return next;
+  return {
+    ...next,
+    path: [...next.path, { field: level.field, label: String(value), value }],
+    currentLevel: Math.min(next.currentLevel + 1, Math.max(0, next.hierarchy.length - 1)),
+  };
 }
 
 export function drillUp(drill) {
   const next = createDrilldown(drill);
-  next.path.pop();
-  next.currentLevel = Math.max(0, next.currentLevel - 1);
-  return next;
+  return {
+    ...next,
+    path: next.path.slice(0, -1),
+    currentLevel: Math.max(0, next.currentLevel - 1),
+  };
 }
 
 export function resetDrill(drill) {

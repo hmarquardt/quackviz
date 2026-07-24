@@ -52,12 +52,14 @@ let currentDashboardAbortController = null;
 let currentReportAbortController = null;
 const interactionBus = createInteractionBus();
 state.interaction.subscriptionCount = interactionBus.subscriptionCount();
+window.__QUACKVIZ_E2E__ = { appReady: false, dbReady: false, renderReady: false, state, appVersion: APP_VERSION };
 
 window.addEventListener("error", (event) => addError("app", "window-error", event.error || new Error(event.message)));
 window.addEventListener("unhandledrejection", (event) => addError("app", "unhandled-rejection", event.reason));
 
 initializeStaticControls();
 subscribe((next) => {
+  updateE2EReadiness();
   renderApp(next);
   if (!saveSuppressed) {
     saveWorkspaceDebounced(next.workspace, (error) => {
@@ -93,12 +95,22 @@ async function boot() {
   await restoreTableAvailability();
   syncAiSettingsToUi();
   refreshAiContextPreview();
+  window.__QUACKVIZ_E2E__.appReady = true;
+  document.documentElement.dataset.appReady = "true";
   notify();
   initializeDatabase().then((status) => {
     state.dbStatus = status;
+    window.__QUACKVIZ_E2E__.dbReady = status.connection === "connected";
+    document.documentElement.dataset.duckdbReady = window.__QUACKVIZ_E2E__.dbReady ? "true" : "false";
     if (status.error) addError("duckdb", "initialize", new Error(status.error));
     notify();
   });
+}
+
+function updateE2EReadiness() {
+  if (!window.__QUACKVIZ_E2E__) return;
+  window.__QUACKVIZ_E2E__.renderReady = Boolean(state.currentOption || state.map.lastDiagnostics);
+  document.documentElement.dataset.renderReady = window.__QUACKVIZ_E2E__.renderReady ? "true" : "false";
 }
 
 function bindEvents() {
@@ -441,7 +453,6 @@ async function refreshActiveDashboard({ bypassCache = false } = {}) {
     state.dashboard.cardStates = result.states;
     state.dashboard.lastRefresh = result;
     notify();
-    await renderDashboardCharts();
   } catch (error) {
     state.dashboard.lastError = error.message;
     addError("dashboard", "refresh", error);
@@ -449,6 +460,7 @@ async function refreshActiveDashboard({ bypassCache = false } = {}) {
     state.dashboard.refreshing = false;
     currentDashboardAbortController = null;
     notify();
+    await renderDashboardCharts();
   }
 }
 
@@ -1836,7 +1848,17 @@ async function runSelfTest() {
     if (result.valid) throw new Error("Unsafe embed message accepted.");
   });
   await step("Apply dashboard template", () => {
-    const applied = applyTemplate(BUILT_IN_TEMPLATES[0], state.workspace);
+    const templateWorkspace = createWorkspace();
+    templateWorkspace.dataSources = [{
+      id: "source_template_self",
+      tableName: "sales",
+      columns: [
+        { name: "order_date", semanticType: "date" },
+        { name: "revenue", semanticType: "currency" },
+        { name: "region", semanticType: "category" },
+      ],
+    }];
+    const applied = applyTemplate(BUILT_IN_TEMPLATES[0], templateWorkspace);
     if (!applied.requiresApproval) throw new Error("Template applied without approval.");
   });
   await step("Validate declarative extension", () => {

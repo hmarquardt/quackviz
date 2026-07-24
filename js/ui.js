@@ -609,7 +609,7 @@ function renderDashboardCard(card, state) {
   const cardState = state.dashboard.cardStates[card.id] || { status: "idle" };
   const broken = !viz || !query || ["error", "unavailable"].includes(cardState.status);
   const title = card.titleOverride || viz?.name || "Broken visualization";
-  return `<article class="dashboard-card${broken ? " broken" : ""}" data-card-id="${html(card.id)}" style="grid-column: ${card.x + 1} / span ${card.width}; grid-row: span ${card.height};">
+  return `<article class="dashboard-card${broken ? " broken" : ""}" data-testid="dashboard-card" data-card-id="${html(card.id)}" style="grid-column: ${card.x + 1} / span ${card.width}; grid-row: span ${card.height};">
     <header>
       <div>
         <h3>${html(card.showTitle ? title : "")}</h3>
@@ -623,7 +623,7 @@ function renderDashboardCard(card, state) {
         <button data-dashboard-action="remove-card" data-card-id="${html(card.id)}">Remove</button>
       </div>
     </header>
-    <div id="dashboardChart_${html(card.id)}" class="dashboard-card-chart" role="img" aria-label="${html(title)} chart">${chartPlaceholder(cardState)}</div>
+    <div id="dashboardChart_${html(card.id)}" class="dashboard-card-chart" data-testid="dashboard-card-chart" role="img" aria-label="${html(title)} chart">${chartPlaceholder(cardState)}</div>
     <footer>
       <span>Rows: ${html(cardState.rowCount ?? "-")} · Runtime: ${html(cardState.runtimeMs ?? "-")} ms</span>
       <span>Refreshed: ${html(cardState.refreshedAt || "never")}</span>

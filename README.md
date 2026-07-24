@@ -40,6 +40,46 @@ http://localhost:8080/tests/
 
 The DOM-free module tests can also be run under Node. Automated tests use mocked/local data and do not make billable AI calls.
 
+### Playwright End-to-End Tests
+
+Playwright is development-only tooling. It is not required by the deployed QuackViz application, which remains a static no-build app that can run from a normal web server.
+
+Install the test dependency and Chromium browser once:
+
+```sh
+npm install --save-dev @playwright/test
+npx playwright install chromium
+```
+
+Run the E2E suite:
+
+```sh
+npm run test:e2e
+```
+
+Useful variants:
+
+```sh
+npm run test:e2e:ui
+npm run test:e2e:headed
+npm run test:e2e:debug
+npm run test:e2e:report
+```
+
+The Playwright config starts QuackViz with:
+
+```sh
+python3 -m http.server 8080
+```
+
+and uses `http://127.0.0.1:8080` as the base URL. If a server is already running on port `8080`, Playwright reuses it instead of starting another instance.
+
+Traces, screenshots, and videos are retained only for failures under `test-results/`; the HTML report is written to `playwright-report/`. These paths, along with `node_modules/`, are ignored by Git.
+
+E2E tests mock OpenRouter responses and do not make real AI provider requests. ECharts and MapLibre are mocked at the browser module boundary for deterministic rendering checks; DuckDB-WASM remains real so import and SQL workflows are exercised through the actual database path.
+
+The tests wait for explicit application-ready, DuckDB-ready, and render-ready state exposed by the app for automation. Unexpected page errors, fatal console errors, failed required local asset requests, DuckDB initialization failures, and worker initialization failures fail the test run. The small warning whitelist is documented in `e2e/fixtures.js`.
+
 ## Exact Dependency Versions
 
 - Apache ECharts `6.0.0`

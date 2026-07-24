@@ -14,6 +14,7 @@ export const AI_CONTRACTS = {
   regionRepair: "quackviz-ai-region-repair",
   interactions: "quackviz-ai-interactions",
   interactionCritique: "quackviz-ai-interaction-critique",
+  packagePlan: "quackviz-ai-package-plan",
 };
 
 export const AI_ACTIONS = [
@@ -42,6 +43,12 @@ export const AI_ACTIONS = [
   { id: "suggest-parameters", label: "Suggest parameters" },
   { id: "critique-interactions", label: "Critique interaction design" },
   { id: "repair-binding", label: "Repair broken interaction" },
+  { id: "recommend-package-mode", label: "Recommend package mode" },
+  { id: "recommend-data-minimization", label: "Recommend data minimization" },
+  { id: "draft-standalone-description", label: "Draft standalone app description" },
+  { id: "suggest-entry-dashboard", label: "Suggest entry dashboard" },
+  { id: "suggest-template-mappings", label: "Suggest template mappings" },
+  { id: "critique-package", label: "Critique package privacy and usability" },
 ];
 
 export function buildSystemPrompt(extra = "") {
@@ -53,6 +60,7 @@ Use DuckDB SQL dialect.
 Only read-only analytical SQL is allowed. SQL must begin with SELECT or WITH.
 Do not use INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, COPY, INSTALL, LOAD, ATTACH, DETACH, CALL, PRAGMA, external URL reads, JavaScript, HTML, ECharts raw options, formatter functions, event handlers, or arbitrary URLs.
 Interaction proposals must be declarative bindings, typed parameters, or drill-down definitions only. Do not return JavaScript callbacks, raw SQL fragments as parameter values, or event handler code.
+Packaging proposals must be metadata-only plans. Do not return raw package files, shell commands, API keys, external URLs, executable extensions, or unapproved data inclusion.
 Supported QuackViz visualization spec version: ${VIZ_SPEC_VERSION}.
 Supported chart types: ${SUPPORTED_CHART_TYPES.join(", ")}.
 Supported map types: ${SUPPORTED_MAP_TYPES.join(", ")}.
@@ -76,6 +84,7 @@ export function actionContract(action) {
   if (["explain-spatial-pattern", "repair-map-sql", "critique-map", "improve-map"].includes(action)) return AI_CONTRACTS.mapProposals;
   if (["suggest-interactions", "suggest-drilldowns", "suggest-parameters", "repair-binding"].includes(action)) return AI_CONTRACTS.interactions;
   if (action === "critique-interactions") return AI_CONTRACTS.interactionCritique;
+  if (["recommend-package-mode", "recommend-data-minimization", "draft-standalone-description", "suggest-entry-dashboard", "suggest-template-mappings", "critique-package"].includes(action)) return AI_CONTRACTS.packagePlan;
   return AI_CONTRACTS.proposals;
 }
 

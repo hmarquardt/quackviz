@@ -20,6 +20,11 @@ import { compileParameterizedSql } from "./parameters.js";
 import { initializeDatabase, executeSql, tableExists } from "./db.js";
 import { loadIncludedSalesSample } from "./import.js";
 import { exportMapVisualizationPackage } from "./map-export.js";
+import { createPortablePackage, inspectPortablePackage, validatePortablePackage, verifyPortablePackageIntegrity } from "./package.js";
+import { createStandaloneHtml, runtimeHarnessLoad } from "./standalone-runtime.js";
+import { createEmbedConfig, createIframeSnippet, validateEmbedMessage } from "./embed.js";
+import { applyTemplate, BUILT_IN_TEMPLATES, exportTemplate } from "./templates.js";
+import { extensionDiagnostics, installExtension, validateExtension } from "./extensions.js";
 import { compileMapSpec } from "./map-compiler.js";
 import { loadBoundary } from "./map-boundaries.js";
 import { rowsToPointGeoJson } from "./map-data.js";
@@ -127,6 +132,11 @@ function bindEvents() {
   el.copyDebug.addEventListener("click", () => copyText(el.debugReport.textContent).catch((error) => addError("ui", "copy-debug", error)));
   el.resetWorkspace.addEventListener("click", resetWorkspace);
   el.selfTest.addEventListener("click", runSelfTest);
+  el.exportWorkspacePackage.addEventListener("click", exportWorkspacePortablePackage);
+  el.exportStandaloneApp.addEventListener("click", exportStandaloneAnalyticalApp);
+  el.copyEmbedSnippet.addEventListener("click", copyCurrentEmbedSnippet);
+  el.exportTemplate.addEventListener("click", exportBuiltInTemplate);
+  el.validateExtension.addEventListener("click", validateSampleExtension);
   el.openRouterKey.addEventListener("change", () => {
     setOpenRouterApiKey(el.openRouterKey.value);
     el.openRouterKey.value = "";
@@ -752,6 +762,117 @@ function exportCurrentMapPackage() {
     state.map.lastError = error.message;
     addError("map", "export-package", error);
   }
+}
+
+async function exportWorkspacePortablePackage() {
+  try {
+    const pkg = await createPortablePackage(state.workspace, { packageMode: "workspace-backup", dataMode: "external", name: state.workspace.name });
+    const inspection = inspectPortablePackage(pkg);
+    await updatePackageDiagnostics(pkg, inspection);
+    elements().packageInspection.textContent = JSON.stringify(inspection, null, 2);
+    downloadJson(`${safeFileName(pkg.manifest.name)}.quackviz.json`, pkg);
+  } catch (error) {
+    state.packaging.lastError = error.message;
+    addError("package", "export-workspace", error);
+  }
+}
+
+async function exportStandaloneAnalyticalApp() {
+  try {
+    const entry = state.workspace.active.dashboardId
+      ? { type: "dashboard", id: state.workspace.active.dashboardId }
+      : state.workspace.active.visualizationId
+        ? { type: "visualization", id: state.workspace.active.visualizationId }
+        : state.workspace.active.reportId
+          ? { type: "report", id: state.workspace.active.reportId }
+          : null;
+    const selection = entry ? { [`${entry.type}s`]: [entry.id] } : {};
+    const pkg = await createPortablePackage(state.workspace, { packageMode: "standalone", dataMode: "external", selection, entrypoints: entry ? [entry] : [] });
+    const html = createStandaloneHtml(pkg);
+    const inspection = inspectPortablePackage(pkg);
+    await updatePackageDiagnostics(pkg, inspection, html);
+    state.packaging.lastStandaloneRuntimeTest = runtimeHarnessLoad(pkg);
+    elements().packageInspection.textContent = JSON.stringify({ inspection, runtime: state.packaging.lastStandaloneRuntimeTest }, null, 2);
+    const blob = new Blob([html], { type: "text/html" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `${safeFileName(pkg.manifest.name)}_standalone.html`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+    notify();
+  } catch (error) {
+    state.packaging.lastError = error.message;
+    addError("package", "export-standalone", error);
+  }
+}
+
+function copyCurrentEmbedSnippet() {
+  const artifactId = state.workspace.active.visualizationId || state.workspace.active.dashboardId || state.workspace.active.reportId;
+  const artifactType = state.workspace.active.visualizationId ? "visualization" : state.workspace.active.dashboardId ? "dashboard" : "report";
+  const config = createEmbedConfig({ artifactType, artifactId, capabilities: { filters: artifactType === "dashboard", emitSelectionValues: false } });
+  const snippet = createIframeSnippet(config);
+  state.packaging.lastEmbedMessage = { artifactType, artifactId, appVersion: APP_VERSION };
+  elements().packageInspection.textContent = JSON.stringify({ config, snippet }, null, 2);
+  copyText(snippet).catch((error) => addError("package", "copy-embed", error));
+  notify();
+}
+
+function exportBuiltInTemplate() {
+  try {
+    const template = exportTemplate(BUILT_IN_TEMPLATES[0]);
+    const applied = applyTemplate(template, state.workspace);
+    state.packaging.templateCount = BUILT_IN_TEMPLATES.length;
+    state.packaging.lastTemplateApplied = applied;
+    elements().packageInspection.textContent = JSON.stringify({ template, applied }, null, 2);
+    downloadJson(`${safeFileName(template.name)}.quackviz-template.json`, template);
+  } catch (error) {
+    state.packaging.lastError = error.message;
+    addError("package", "export-template", error);
+  }
+}
+
+function validateSampleExtension() {
+  try {
+    const extension = {
+      format: "quackviz-extension",
+      formatVersion: 1,
+      id: "extension_lollipop",
+      name: "Lollipop chart preset",
+      version: "1.0.0",
+      publisher: "Local User",
+      extensionTypes: ["chart-definition"],
+      requirements: { minimumAppVersion: APP_VERSION, maximumAppVersion: null },
+      contributions: { chartDefinitions: [{ id: "lollipop", label: "Lollipop", compilerFamily: "bar", requiredRoles: ["x", "y"], defaults: { orientation: "horizontal", showLabels: true } }] },
+    };
+    const validation = validateExtension(extension, state.packaging.extensions);
+    if (validation.valid) state.packaging.extensions = installExtension(state.packaging.extensions, extension, { enable: false });
+    const diagnostics = extensionDiagnostics(state.packaging.extensions);
+    state.packaging.installedExtensionCount = diagnostics.installedExtensionCount;
+    state.packaging.enabledExtensionCount = diagnostics.enabledExtensionCount;
+    elements().packageInspection.textContent = JSON.stringify({ validation, diagnostics }, null, 2);
+    notify();
+  } catch (error) {
+    state.packaging.lastError = error.message;
+    addError("package", "validate-extension", error);
+  }
+}
+
+async function updatePackageDiagnostics(pkg, inspection, runtimeHtml = "") {
+  const integrity = await verifyPortablePackageIntegrity(pkg);
+  state.packaging.lastMode = pkg.manifest.packageMode;
+  state.packaging.lastDataMode = pkg.manifest.dataMode;
+  state.packaging.lastPackageSize = JSON.stringify(pkg).length;
+  state.packaging.lastRuntimeSize = runtimeHtml.length || null;
+  state.packaging.lastDataSize = JSON.stringify(pkg.data || {}).length;
+  state.packaging.lastBoundarySize = JSON.stringify(pkg.assets?.boundaries || []).length;
+  state.packaging.lastArtifactCount = Object.values(pkg.manifest.artifactCounts || {}).reduce((sum, count) => sum + count, 0);
+  state.packaging.lastTableCount = pkg.manifest.tableCount;
+  state.packaging.lastHashCount = pkg.manifest.integrity?.files?.length || 0;
+  state.packaging.lastIntegrityResult = integrity;
+  state.packaging.lastExportAt = pkg.manifest.createdAt;
+  state.packaging.lastError = inspection.valid ? null : inspection.errors[0]?.message;
+  notify();
 }
 
 function safeFileName(name) {
@@ -1661,6 +1782,77 @@ async function runSelfTest() {
     const payload = { contract: AI_CONTRACTS.interactions, contractVersion: 1, summary: "Bad", bindings: [{ title: "Bad", sourceCardId: "missing", sourceField: "region", eventKinds: ["category"], targetMode: "explicit", targetCardIds: [interactionCards.targetCard.id], action: { type: "filter", dashboardField: "region", operator: "in" } }], drilldowns: [], parameters: [], assumptions: [], cautions: [] };
     const result = validateAiResponse(payload, { expectedContract: AI_CONTRACTS.interactions, dataset: interactionDashboard });
     if (result.valid) throw new Error("Invalid AI interaction proposal accepted.");
+  });
+  let portablePackage = null;
+  await step("Resolve dashboard package dependency graph", async () => {
+    portablePackage = await createPortablePackage(interactionWorkspace, { packageMode: "standalone", dataMode: "external", selection: { dashboards: [interactionDashboard.id] } });
+    if (!portablePackage.manifest.artifactCounts.dashboards || !portablePackage.manifest.artifactCounts.visualizations) throw new Error("Dependency closure missing.");
+  });
+  await step("Detect missing package dependency", async () => {
+    const broken = JSON.parse(JSON.stringify(interactionWorkspace));
+    broken.queries = [];
+    const pkg = await createPortablePackage(broken, { packageMode: "standalone", dataMode: "external", selection: { dashboards: [interactionDashboard.id] } });
+    if (validatePortablePackage(pkg).valid && pkg.manifest.artifactCounts.queries) throw new Error("Missing dependency was not reflected.");
+  });
+  await step("Create package manifest", () => {
+    if (portablePackage.manifest.createdBy.appVersion !== APP_VERSION || portablePackage.format !== "quackviz-package") throw new Error("Package manifest invalid.");
+  });
+  await step("Exclude API key from package", async () => {
+    const workspace = createWorkspace();
+    workspace.settings.ai.apiKey = "secret";
+    const pkg = await createPortablePackage(workspace, { packageMode: "workspace-backup" });
+    if (JSON.stringify(pkg).includes("secret")) throw new Error("Secret leaked.");
+  });
+  await step("Generate data fingerprint", async () => {
+    const hash = portablePackage.manifest.integrity.files[0]?.hash;
+    if (!hash || hash.length !== 64) throw new Error("Hash missing.");
+  });
+  await step("Generate and verify file hash", async () => {
+    const integrity = await verifyPortablePackageIntegrity(portablePackage);
+    if (!integrity.ok) throw new Error("Package hash verification failed.");
+  });
+  await step("Reject mismatched package hash", async () => {
+    const changed = JSON.parse(JSON.stringify(portablePackage));
+    changed.workspace.name = "Changed";
+    const integrity = await verifyPortablePackageIntegrity(changed);
+    if (integrity.ok) throw new Error("Mismatched hash accepted.");
+  });
+  await step("Build minimal standalone package", () => {
+    if (!createStandaloneHtml(portablePackage).includes("QuackViz Standalone")) throw new Error("Standalone HTML missing.");
+  });
+  await step("Load package in runtime harness", () => {
+    if (!runtimeHarnessLoad(portablePackage).ready) throw new Error("Runtime harness failed.");
+  });
+  await step("Render one standalone visualization placeholder", () => {
+    const html = createStandaloneHtml(portablePackage);
+    if (!html.includes("Revenue") && !html.includes("Target")) throw new Error("Standalone artifact missing.");
+  });
+  await step("Parse valid embed config", () => {
+    const config = createEmbedConfig({ artifactType: "dashboard", artifactId: interactionDashboard.id });
+    if (!config.artifactId) throw new Error("Embed config missing artifact.");
+  });
+  await step("Reject unsafe embed message", () => {
+    const result = validateEmbedMessage({ format: "quackviz-embed-message", version: 1, type: "set-filter", payload: { sql: "SELECT 1" } }, { config: createEmbedConfig({ capabilities: { filters: false } }) });
+    if (result.valid) throw new Error("Unsafe embed message accepted.");
+  });
+  await step("Apply dashboard template", () => {
+    const applied = applyTemplate(BUILT_IN_TEMPLATES[0], state.workspace);
+    if (!applied.requiresApproval) throw new Error("Template applied without approval.");
+  });
+  await step("Validate declarative extension", () => {
+    const validation = validateExtension({ format: "quackviz-extension", formatVersion: 1, id: "extension_self_test", extensionTypes: ["chart-definition"], contributions: { chartDefinitions: [{ id: "lollipop", compilerFamily: "bar" }] } });
+    if (!validation.valid) throw new Error(validation.errors[0]?.message || "Extension invalid.");
+  });
+  await step("Reject executable extension content", () => {
+    const validation = validateExtension({ format: "quackviz-extension", formatVersion: 1, id: "extension_bad", extensionTypes: ["chart-definition"], contributions: { handler: "() => true" } });
+    if (validation.valid) throw new Error("Executable extension accepted.");
+  });
+  await step("Migrate older package version", () => {
+    const migrated = validatePortablePackage({ ...portablePackage, formatVersion: 0, manifest: { ...portablePackage.manifest, packageMode: "standalone", dataMode: "external" } });
+    if (!migrated.valid) throw new Error(migrated.errors[0]?.message || "Migration failed.");
+  });
+  await step("Verify standalone footer version", () => {
+    if (!createStandaloneHtml(portablePackage).includes(`Runtime ${APP_VERSION}`)) throw new Error("Standalone footer version mismatch.");
   });
   await step("Footer version matches APP_VERSION", () => {
     if (!elements().footerVersion.textContent.includes(APP_VERSION)) throw new Error("Footer version mismatch.");

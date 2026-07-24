@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.7.0";
+export const APP_VERSION = "0.8.0";
 export const BUILD_DATE = "2026-07-24";
 export const WORKSPACE_SCHEMA_VERSION = 1;
 export const VIZ_SPEC_VERSION = 1;
@@ -7,6 +7,10 @@ export const DASHBOARD_VERSION = 1;
 export const REPORT_VERSION = 1;
 export const MAP_SPEC_VERSION = 1;
 export const INTERACTION_VERSION = 1;
+export const PACKAGE_FORMAT_VERSION = 1;
+export const TEMPLATE_FORMAT_VERSION = 1;
+export const EXTENSION_FORMAT_VERSION = 1;
+export const EMBED_FORMAT_VERSION = 1;
 
 export const DEPENDENCIES = {
   echarts: {
@@ -66,6 +70,9 @@ export const MAP_TOOLTIP_FIELD_LIMIT = 10;
 export const MAP_CATEGORY_WARNING_LIMIT = 12;
 export const INTERACTION_HISTORY_LIMIT = 100;
 export const INTERACTION_MAX_PROPAGATION_DEPTH = 4;
+export const PACKAGE_MODES = ["workspace-backup", "standalone", "dashboard-only", "report-only", "visualization", "template", "embed"];
+export const PACKAGE_DATA_MODES = ["included", "external", "snapshot-only", "pre-aggregated"];
+export const PACKAGE_SIZE_WARNINGS = [25 * 1024 * 1024, 100 * 1024 * 1024, 500 * 1024 * 1024];
 
 export const OPENROUTER = {
   provider: "openrouter",

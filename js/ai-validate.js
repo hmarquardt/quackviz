@@ -21,6 +21,7 @@ const REPORT_CRITIQUE_KEYS = new Set(["contract", "contractVersion", "summary", 
 const REGION_REPAIR_KEYS = new Set(["contract", "contractVersion", "boundaryId", "mappings", "unresolved"]);
 const INTERACTION_KEYS = new Set(["contract", "contractVersion", "summary", "bindings", "drilldowns", "parameters", "assumptions", "cautions"]);
 const INTERACTION_CRITIQUE_KEYS = new Set(["contract", "contractVersion", "summary", "issues", "recommendations", "circularRisks", "cautions"]);
+const PACKAGE_PLAN_KEYS = new Set(["contract", "contractVersion", "recommendedMode", "recommendedDataMode", "entrypoints", "include", "privacyRecommendations", "capabilities", "cautions"]);
 
 export function parseAiJson(text) {
   const trimmed = String(text || "").trim();
@@ -46,6 +47,7 @@ export function validateAiResponse(payload, { expectedContract, knownTables = []
   if (expectedContract === AI_CONTRACTS.regionRepair) return validateRegionRepair(payload);
   if (expectedContract === AI_CONTRACTS.interactions) return validateAiInteractions(payload, dataset || {});
   if (expectedContract === AI_CONTRACTS.interactionCritique) return validateAiInteractionCritique(payload);
+  if (expectedContract === AI_CONTRACTS.packagePlan) return validateAiPackagePlan(payload, dataset || {});
   return validateProposalResponse(payload, knownTables, dataset);
 }
 
@@ -91,6 +93,28 @@ export function validateAiInteractionCritique(payload) {
     if (!Array.isArray(payload?.[key])) errors.push(error(key, `${key} must be an array.`));
   }
   return { valid: errors.length === 0, errors, warnings: [], critique: payload };
+}
+
+export function validateAiPackagePlan(payload, workspace = {}) {
+  const errors = baseContract(payload, AI_CONTRACTS.packagePlan, PACKAGE_PLAN_KEYS);
+  const ids = {
+    dashboard: new Set((workspace.dashboards || []).map((item) => item.id)),
+    report: new Set((workspace.reports || []).map((item) => item.id)),
+    visualization: new Set((workspace.visualizations || []).map((item) => item.id)),
+    query: new Set((workspace.queries || []).map((item) => item.id)),
+  };
+  if (!["workspace-backup", "standalone", "dashboard-only", "report-only", "visualization", "template", "embed"].includes(payload?.recommendedMode)) errors.push(error("recommendedMode", "Unsupported package mode."));
+  if (!["included", "external", "snapshot-only", "pre-aggregated"].includes(payload?.recommendedDataMode)) errors.push(error("recommendedDataMode", "Unsupported data mode."));
+  for (const [index, entry] of (payload?.entrypoints || []).entries()) {
+    if (!ids[entry.type]?.has(entry.id)) errors.push(error(`entrypoints[${index}].id`, `Unknown ${entry.type} '${entry.id}'.`));
+  }
+  for (const [kind, values] of Object.entries(payload?.include || {})) {
+    const singular = kind.replace(/s$/, "");
+    for (const id of values || []) if (ids[singular] && !ids[singular].has(id)) errors.push(error(`include.${kind}`, `Unknown ${singular} '${id}'.`));
+  }
+  for (const rec of payload?.privacyRecommendations || []) if (rec.action && !["exclude-column", "snapshot-only", "pre-aggregate", "external-data", "disable-data-export"].includes(rec.action)) errors.push(error("privacyRecommendations", "Unsupported privacy recommendation action."));
+  if (payload?.capabilities?.queryEditing || payload?.capabilities?.rawSql) errors.push(error("capabilities", "Package plans cannot enable query editing or raw SQL capabilities."));
+  return { valid: errors.length === 0, errors, warnings: [], plan: payload };
 }
 
 export function validateProposalResponse(payload, knownTables = [], dataset = null) {

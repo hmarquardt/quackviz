@@ -1,25 +1,24 @@
 # QuackViz
 
-QuackViz is a static, browser-local DuckDB-WASM, Apache ECharts, and MapLibre GL JS analytical workspace. Current application version: `0.7.0`, build date `2026-07-24`.
+QuackViz is a static, browser-local DuckDB-WASM, Apache ECharts, and MapLibre GL JS analytical workspace. Current application version: `0.8.0`, build date `2026-07-24`.
 
-## Current Milestone: Coordinated Interactions
+## Current Milestone: Portable Analytical Apps
 
-QuackViz now includes declarative dashboard interactions for cross-filtering, linked highlighting, typed query parameters, drill-down state, interaction history, and structured AI interaction proposals. The existing import, profiling, SQL, visualization, AI, dashboard, report, map, persistence, export, tests, diagnostics, and footer workflows remain in place.
+QuackViz now includes a unified portable package format, standalone analytical app export, embedded artifact configuration, reusable templates, and declarative extension validation. The existing import, profiling, SQL, visualization, AI, dashboard, report, map, interaction, persistence, export, tests, diagnostics, and footer workflows remain in place.
 
-The interaction workflow is:
+The portable-app workflow is:
 
 ```text
-user selects a mark, category, range, or region
--> QuackViz emits a typed interaction event
--> dashboard resolves compatible bindings
--> parameter and filter state updates
--> affected SQL queries are safely compiled or wrapped
--> DuckDB refreshes affected cards
--> charts and maps update
--> interaction lineage remains visible and reversible
+workspace
+-> select artifacts and data
+-> validate references and privacy
+-> create portable package
+-> open in standalone or embedded mode
+-> interact locally
+-> optionally reopen in QuackViz for editing
 ```
 
-Remote database connectivity, real-time streaming, collaboration, authentication, cloud synchronization, arbitrary callbacks, and AI-generated event handlers are not implemented.
+Remote database connectivity, real-time streaming, collaboration, authentication, cloud synchronization, arbitrary callbacks, arbitrary JavaScript plugins, and server-hosted publishing are not implemented.
 
 ## Run Locally
 
@@ -343,7 +342,7 @@ Map visualization package export uses:
   "formatVersion": 1,
   "exportedBy": {
     "app": "QuackViz",
-    "appVersion": "0.7.0",
+    "appVersion": "0.8.0",
     "buildDate": "2026-07-24"
   },
   "query": {},
@@ -354,6 +353,185 @@ Map visualization package export uses:
 ```
 
 Large boundary files are not embedded by default.
+
+## Portable Package Format
+
+The unified package format is:
+
+```json
+{
+  "format": "quackviz-package",
+  "formatVersion": 1,
+  "manifest": {},
+  "workspace": {},
+  "artifacts": {},
+  "data": {},
+  "assets": {},
+  "extensions": []
+}
+```
+
+Supported package modes:
+
+- Full workspace backup
+- Standalone analytical app
+- Dashboard-only package
+- Report-only package
+- Visualization package
+- Template package
+- Embedded artifact package
+
+Supported data modes:
+
+- `included`: package contains CSV table payloads and data fingerprints
+- `external`: package contains schema requirements and import expectations
+- `snapshot-only`: package contains artifacts/snapshots but cannot refresh queries
+- `pre-aggregated`: package materializes saved-query result plans and limits source-level refresh
+
+The package manifest includes app version, build date, workspace schema version, artifact counts, table counts, entry points, capabilities, dependencies, boundaries, extension IDs, privacy review, integrity records, data fingerprints, and known limitations.
+
+Standalone packages never include OpenRouter API keys.
+
+## Dependency Resolution
+
+The dependency resolver walks selected artifacts and includes required relationships:
+
+```text
+selected dashboard
+-> cards
+-> visualizations
+-> queries
+-> source tables
+-> map boundaries
+-> interaction bindings
+```
+
+Reports resolve visualization, query, and dashboard snapshot sources. Missing dependencies are reported rather than silently omitted. Optional references, such as hidden report sections, are reported separately.
+
+## Data Minimization
+
+Package planning supports:
+
+- Full required source tables
+- External schema-only requirements
+- Column-pruned extract plans
+- Pre-aggregated query-result plans
+- Snapshot-only packages
+- Sensitive-field warnings
+
+Column-pruned and pre-aggregated modes are represented as safe packaging plans in this milestone. They do not silently rewrite arbitrary SQL or discard required fields.
+
+External-data standalone apps require the user to provide compatible local data.
+
+## Standalone Runtime
+
+Standalone export creates a self-contained static HTML runtime with an embedded package payload and a deliberate viewing boundary. It does not expose the authoring UI, OpenRouter settings, workspace reset controls, extension installation, or query creation controls.
+
+Default runtime capabilities are conservative:
+
+- View dashboards, reports, and visualizations
+- Filters, cross-filtering, and drill-down metadata can be enabled by manifest capability
+- Query editing is disabled
+- AI is disabled
+- Data export is disabled unless explicitly permitted
+
+The standalone footer includes machine-readable runtime metadata:
+
+```html
+<footer
+  data-quackviz-runtime-version="0.8.0"
+  data-quackviz-package-version="1">
+</footer>
+```
+
+The runtime uses relative paths and is intended for normal static hosting, including Python `http.server` and GitHub Pages project paths.
+
+## Embedded Mode
+
+Embed export creates a constrained config:
+
+```json
+{
+  "format": "quackviz-embed",
+  "formatVersion": 1,
+  "artifactType": "visualization",
+  "artifactId": "viz_monthly_revenue",
+  "theme": "system",
+  "height": 480,
+  "capabilities": {
+    "filters": false,
+    "downloadImage": true,
+    "showMetadata": false,
+    "emitSelectionValues": false
+  }
+}
+```
+
+Embed snippets use iframes. Optional `postMessage` handling uses a versioned message contract and rejects wrong origins, unsupported message types, disabled capabilities, and raw SQL payloads. Selection values are not emitted to the parent page by default.
+
+## Templates
+
+Templates are data-free reusable structures. Built-ins currently include:
+
+- Executive sales dashboard
+- Time-series operations dashboard
+- Data-quality review
+- Geographic performance overview
+- Experiment-results report
+- Telemetry monitoring dashboard
+
+Template application inspects semantic roles, shows proposed mappings, marks ambiguous or missing roles, and requires approval before artifacts are created. Templates do not silently bind fields based only on similar names.
+
+## Declarative Extensions
+
+QuackViz extensions are declarative and cannot contain executable JavaScript.
+
+Supported extension contribution types include:
+
+- Chart definition
+- Visualization recommendation rule
+- Semantic-type rule
+- Formatting preset
+- Report section preset
+- Template pack
+- Boundary catalog entry
+- Color-scale preset
+- Query-builder aggregate definition
+
+Extensions are parsed, validated, and can be installed, enabled, disabled, or removed from the local registry. Raw ECharts options, raw MapLibre layers, event handlers, remote boundary URLs, unknown compiler families, executable-looking strings, and protected built-in ID overrides are rejected.
+
+## Integrity Hashes
+
+Packages include SHA-256 hashes for critical files such as manifest, workspace, artifacts, and data payloads. Import inspection can verify available hashes and report missing or mismatched files.
+
+Integrity hashes detect changed files but do not verify who created the package.
+
+## Package Privacy Review
+
+Before export, QuackViz records privacy metadata:
+
+- Raw data included
+- Free-text field count
+- Suspected sensitive field count
+- Geographic coordinate field count
+- AI history inclusion
+- Data export capability
+- API keys excluded
+
+Sensitive detection is conservative and name-based; it is not a guarantee that all sensitive data has been found.
+
+## AI Package Assistance
+
+AI package actions are advisory only:
+
+- Recommend package mode
+- Recommend data-minimization strategy
+- Draft standalone app description
+- Suggest entry dashboard
+- Suggest template mappings
+- Critique package privacy and usability
+
+The `quackviz-ai-package-plan` contract rejects unknown artifact IDs, unsupported package modes, unsupported data modes, raw SQL capabilities, arbitrary external URLs, JavaScript, shell commands, API keys, and executable extension content. AI package plans require user approval and do not export automatically.
 
 ## DuckDB Spatial Extension
 
@@ -367,7 +545,7 @@ QuackViz does not silently execute AI-generated SQL.
 
 ## Footer and Versioning
 
-The persistent footer shows the canonical app version and build date. Debug, workspace metadata, dashboard exports, report exports, map exports, interaction diagnostics, and AI diagnostics use the same constants. “Copy deployment info” includes app version, build date, workspace ID, active dashboard ID, active map visualization ID, active interaction count, active drill path, and page URL.
+The persistent footer shows the canonical app version and build date. Debug, workspace metadata, dashboard exports, report exports, map exports, interaction diagnostics, package manifests, template metadata, extension diagnostics, standalone runtime metadata, and AI diagnostics use the same constants. “Copy deployment info” includes app version, build date, workspace ID, active dashboard ID, active map visualization ID, active interaction count, active drill path, and page URL.
 
 ## Accessibility and Performance
 
@@ -391,6 +569,10 @@ Default limits:
 - The first interaction UI is intentionally compact: it supports simple field bindings and selection application, while advanced binding editing and visual keyboard selection affordances are reserved for follow-up work.
 - Drill-through detail tables and same-visualization query regeneration have model support but only limited UI exposure in this milestone.
 - Cross-filter compatibility is based on declared visualization encodings and result fields. QuackViz does not silently rewrite arbitrary SQL to force dashboard filters.
+- Portable packages are exported as JSON and standalone apps as self-contained HTML. A ZIP container is not added in this milestone to preserve the no-install/no-build dependency model.
+- Standalone runtime rendering is intentionally presentation-oriented; full DuckDB-backed refresh from included data is represented by package data contracts and runtime metadata, with deeper runtime query execution reserved for a follow-up.
+- Column-pruned and pre-aggregated exports are packaging plans in this milestone, not full Parquet materialization.
+- Extension persistence is local in runtime state for now; richer user-extension management can build on the declarative validator.
 - No geocoding service is included.
 - No routing, streaming, collaboration, or remote database connectivity is included.
 - Browser self-test requires a static server and CDN access for DuckDB/ECharts/MapLibre runtime paths.
@@ -399,8 +581,8 @@ Default limits:
 
 Recommended focus:
 
-1. Build a richer interaction authoring inspector with compatibility previews per card.
-2. Add direct renderer-to-dashboard event wiring for live ECharts and MapLibre clicks.
-3. Expand drill-through detail panels and parameter controls in the dashboard UI.
-4. Add accessible keyboard alternatives for common chart selections.
-5. Add advanced map/report interaction coverage once the binding editor stabilizes.
+1. Add a ZIP container with optional vendored runtime assets while preserving no-build authoring.
+2. Execute packaged included-data queries in the standalone runtime with DuckDB-WASM.
+3. Add a package import inspector modal with selective optional-component import.
+4. Expand template application into a full mapping-and-approval workflow.
+5. Persist the declarative extension registry in IndexedDB and surface conflict resolution UI.

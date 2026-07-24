@@ -20,9 +20,10 @@ import { mapSpecTests } from "./map-spec.test.js";
 import { mapRendererTests } from "./map-renderer.test.js";
 import { aiMapTests } from "./ai-map.test.js";
 import { interactionTests } from "./interactions.test.js";
+import { packageTests } from "./package.test.js";
 
 const resultsEl = document.getElementById("results");
-const tests = [...vizSpecTests, ...vizCompilerTests, ...workspaceTests, ...aiContractTests, ...aiSqlSafetyTests, ...aiContextTests, ...aiProposalTests, ...versionTests, ...dashboardModelTests, ...dashboardFilterTests, ...dashboardExportTests, ...dashboardRunnerTests, ...aiDashboardTests, ...reportModelTests, ...reportRunnerTests, ...reportExportTests, ...aiReportTests, ...mapSpatialTests, ...mapSpecTests, ...mapRendererTests, ...aiMapTests, ...interactionTests];
+const tests = [...vizSpecTests, ...vizCompilerTests, ...workspaceTests, ...aiContractTests, ...aiSqlSafetyTests, ...aiContextTests, ...aiProposalTests, ...versionTests, ...dashboardModelTests, ...dashboardFilterTests, ...dashboardExportTests, ...dashboardRunnerTests, ...aiDashboardTests, ...reportModelTests, ...reportRunnerTests, ...reportExportTests, ...aiReportTests, ...mapSpatialTests, ...mapSpecTests, ...mapRendererTests, ...aiMapTests, ...interactionTests, ...packageTests];
 const results = [];
 
 for (const test of tests) {

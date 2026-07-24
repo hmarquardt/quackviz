@@ -1,5 +1,6 @@
 import { DEPENDENCIES } from "./constants.js";
 import { compileMapSpec } from "./map-compiler.js";
+import { adaptMapLibreFeatureClick } from "./selection-adapters.js";
 
 let maplibreModule = null;
 const instances = new Map();
@@ -43,7 +44,7 @@ export async function createMapInstance(container, instanceId, options = {}) {
   if (maplibregl.ScaleControl) map.addControl(new maplibregl.ScaleControl(), "bottom-left");
   const observer = new ResizeObserver(() => map.resize());
   observer.observe(container);
-  instances.set(instanceId, { map, container, observer, compiled: null });
+  instances.set(instanceId, { map, container, observer, compiled: null, handlers: [] });
   return map;
 }
 
@@ -77,6 +78,7 @@ export function resizeMapInstance(instanceId) {
 export function disposeMapInstance(instanceId) {
   const entry = instances.get(instanceId);
   if (!entry) return;
+  for (const handler of entry.handlers || []) entry.map.off?.("click", handler.layerId, handler.fn);
   entry.observer.disconnect();
   entry.map.remove();
   instances.delete(instanceId);
@@ -86,17 +88,42 @@ export function disposeAllMaps() {
   for (const id of [...instances.keys()]) disposeMapInstance(id);
 }
 
-export async function renderMapVisualization(element, spec, dataset, themeTokens, instanceId = "map_main") {
+export async function renderMapVisualization(element, spec, dataset, themeTokens, instanceId = "map_main", interaction = null) {
   try {
     const compiled = await compileMapSpec(spec, dataset, themeTokens);
     await createMapInstance(element, instanceId, { style: compiled.style, center: spec.map?.center || undefined, zoom: spec.map?.zoom ?? undefined });
     await renderMapInstance(instanceId, compiled);
+    bindMapInteraction(instanceId, spec, interaction);
     return compiled;
   } catch (error) {
     status.error = error.message;
     disposeMapInstance(instanceId);
     element.innerHTML = `<div class="empty-state">Map failed to render: ${escapeHtml(error.message)}</div>`;
     throw error;
+  }
+}
+
+function bindMapInteraction(instanceId, spec, interaction) {
+  const entry = instances.get(instanceId);
+  if (!entry?.map) return;
+  for (const handler of entry.handlers || []) entry.map.off?.("click", handler.layerId, handler.fn);
+  entry.handlers = [];
+  if (!interaction?.onEvent) return;
+  const field = spec.encoding?.region?.field || spec.encoding?.label?.field || spec.encoding?.color?.field;
+  if (!field) return;
+  const kind = spec.encoding?.region?.field ? "map-region" : "map-feature";
+  const layerIds = (entry.compiled?.layers || []).filter((layer) => ["circle", "fill"].includes(layer.type)).map((layer) => layer.id);
+  for (const layerId of layerIds) {
+    const fn = (payload) => {
+      try {
+        const feature = payload?.features?.[0];
+        if (feature) interaction.onEvent(adaptMapLibreFeatureClick(feature, interaction.source || {}, field, kind));
+      } catch (error) {
+        interaction.onError?.(error);
+      }
+    };
+    entry.map.on?.("click", layerId, fn);
+    entry.handlers.push({ layerId, fn });
   }
 }
 

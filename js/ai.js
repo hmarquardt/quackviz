@@ -41,7 +41,10 @@ export async function runAiAction({ apiKey, action, question, workspace, selecte
     throw error;
   }
   const workspaceContracts = new Set(["quackviz-ai-dashboard", "quackviz-ai-report-outline"]);
-  const validation = validateAiResponse(parsed.value, { expectedContract, knownTables: selectedTables, dataset: workspaceContracts.has(expectedContract) ? workspace : currentResult });
+  const activeDashboard = workspace.dashboards?.find((dashboard) => dashboard.id === workspace.active?.dashboardId) || workspace.dashboards?.[0] || null;
+  const interactionDataset = activeDashboard ? { ...activeDashboard, workspace } : {};
+  const validationDataset = expectedContract === "quackviz-ai-interactions" ? interactionDataset : workspaceContracts.has(expectedContract) ? workspace : currentResult;
+  const validation = validateAiResponse(parsed.value, { expectedContract, knownTables: selectedTables, dataset: validationDataset });
   const result = {
     action,
     provider: OPENROUTER.provider,
@@ -57,6 +60,7 @@ export async function runAiAction({ apiKey, action, question, workspace, selecte
       contractVersion: parsed.value.contractVersion,
       proposalCount: validation.proposals?.length || 0,
       mapProposalCount: expectedContract === "quackviz-ai-map-proposals" ? validation.proposals?.length || 0 : 0,
+      interactionProposalCount: expectedContract === "quackviz-ai-interactions" ? (validation.interactions?.bindings?.length || validation.interactions?.normalizedBindings?.length || 0) : 0,
     },
   };
   if (expectedContract === "quackviz-ai-proposals" || expectedContract === "quackviz-ai-map-proposals") result.proposalState = createProposalState(validation);

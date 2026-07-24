@@ -2,6 +2,7 @@ import { DASHBOARD_CONCURRENCY_LIMIT } from "./constants.js";
 import { runQuery } from "./query.js";
 import { validateSqlSafety } from "./ai-sql-safety.js";
 import { applyDashboardFilters } from "./dashboard-filters.js";
+import { compileParameterizedSql } from "./parameters.js";
 import { validateVisualizationSpec } from "./viz-spec.js";
 
 const cache = new Map();
@@ -53,13 +54,23 @@ export async function refreshDashboard({ dashboard, workspace, loadedTables = ne
 export async function refreshCard({ dashboard, card, workspace, loadedTables = new Set(), bypassCache = false, signal = null, execute = runQuery }) {
   const resolved = resolveCard(card, workspace, loadedTables);
   if (!resolved.ok) return state(card.id, resolved.status, resolved.error);
-  const baseSafety = validateSqlSafety(resolved.query.sql, resolved.query.sourceTables || []);
+  let parameterResult;
+  try {
+    parameterResult = compileParameterizedSql(resolved.query.sql, resolved.query.parameters || [], {
+      ...(dashboard.interactions?.state?.activeParameters || {}),
+      ...(card.parameterValues || {}),
+    });
+  } catch (error) {
+    return state(card.id, "error", error.message);
+  }
+  if (parameterResult.missingParameters.length) return state(card.id, "error", `Missing required parameters: ${parameterResult.missingParameters.join(", ")}`);
+  const baseSafety = validateSqlSafety(parameterResult.sql, resolved.query.sourceTables || []);
   if (!baseSafety.ok) return state(card.id, "error", baseSafety.errors[0]?.message || "SQL safety failed.");
   const basePreview = await execute(`SELECT * FROM (${baseSafety.sql}) AS __quackviz_filter_probe LIMIT 0`, resolved.query.id);
   if (basePreview.error) return state(card.id, "error", basePreview.error.message);
   const filterResult = applyDashboardFilters({
     sql: baseSafety.sql,
-    filters: [...(dashboard.filters || []), ...(card.localFilters || [])],
+    filters: [...(dashboard.filters || []), ...(card.localFilters || []), ...(dashboard.interactions?.state?.activeFilters || []).filter((filter) => !filter.cardId || filter.cardId === card.id)],
     columns: basePreview.columns,
   });
   const filteredSafety = validateSqlSafety(filterResult.sql, resolved.query.sourceTables || []);
@@ -82,6 +93,7 @@ export async function refreshCard({ dashboard, card, workspace, loadedTables = n
     refreshedAt: result.executedAt,
     resultSignature: signature,
     filterResult,
+    parameterResult,
     cached: false,
   });
   cache.set(signature, ready);
@@ -119,5 +131,7 @@ function signatureFor({ query, sql, card, dashboard }) {
     sql,
     dashboardFilters: dashboard.filters || [],
     localFilters: card.localFilters || [],
+    interactionFilters: dashboard.interactions?.state?.activeFilters || [],
+    parameters: dashboard.interactions?.state?.activeParameters || {},
   });
 }

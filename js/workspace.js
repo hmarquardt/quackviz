@@ -1,5 +1,6 @@
 import { APP_VERSION, BUILD_DATE, DEFAULT_AI_SETTINGS, WORKSPACE_SCHEMA_VERSION } from "./constants.js";
 import { normalizeDashboard } from "./dashboard.js";
+import { normalizeParameter } from "./parameters.js";
 import { normalizeReport } from "./report.js";
 import { deepClone, nowIso, uid } from "./utils.js";
 
@@ -138,7 +139,7 @@ function hydrateQuery(query) {
     name: query.name || "Untitled query",
     description: query.description || "",
     sql: query.sql || "",
-    parameters: Array.isArray(query.parameters) ? query.parameters : [],
+    parameters: Array.isArray(query.parameters) ? query.parameters.map(normalizeParameter) : [],
     sourceTables: Array.isArray(query.sourceTables) ? query.sourceTables : [],
     createdBy: query.createdBy || "user",
     createdAt: query.createdAt || nowIso(),
@@ -194,7 +195,7 @@ export function addOrUpdateQuery(workspace, input, activeQueryId = null) {
     name: input.name || existing?.name || "Untitled query",
     description: input.description ?? existing?.description ?? "",
     sql: input.sql ?? existing?.sql ?? "",
-    parameters: input.parameters || existing?.parameters || [],
+    parameters: (input.parameters || existing?.parameters || []).map(normalizeParameter),
     sourceTables: input.sourceTables || existing?.sourceTables || inferSourceTables(input.sql || existing?.sql || ""),
     createdBy: input.createdBy || existing?.createdBy || "user",
     createdAt: existing?.createdAt || input.createdAt || timestamp,

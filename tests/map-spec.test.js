@@ -1,6 +1,7 @@
 import { compileMapSpec } from "../js/map-compiler.js";
 import { exportMapVisualizationPackage } from "../js/map-export.js";
 import { defaultMapSpec } from "../js/map-spec.js";
+import { APP_VERSION } from "../js/constants.js";
 import { validateMapSpec } from "../js/map-validate.js";
 import { addOrUpdateQuery, addOrUpdateVisualization, createWorkspace } from "../js/workspace.js";
 
@@ -28,5 +29,5 @@ export const mapSpecTests = [
   { name: "map-compiler: point source and layer", run: async () => { const compiled = await compileMapSpec(point, dataset, { accent: "#167c72" }); assert(compiled.sources.quackviz_points && compiled.layers.some((layer) => layer.id === "points"), "point compile failed"); } },
   { name: "map-compiler: cluster layers", run: async () => { const compiled = await compileMapSpec({ ...point, type: "map-clustered-point", map: { cluster: true } }, dataset, { accent: "#167c72" }); assert(compiled.layers.some((layer) => layer.id === "clusters"), "cluster layer missing"); } },
   { name: "map-compiler: choropleth fill", run: async () => { const compiled = await compileMapSpec(choropleth, dataset, { accent: "#167c72" }); assert(compiled.layers.some((layer) => layer.id === "regions"), "regions layer missing"); } },
-  { name: "map-export: package version", run: () => { const workspace = createWorkspace(); const query = addOrUpdateQuery(workspace, { id: "query_1", sql: "SELECT * FROM t", sourceTables: ["t"] }); const viz = addOrUpdateVisualization(workspace, { id: "viz_1", name: "Map", queryId: query.id, spec: point }); const pkg = exportMapVisualizationPackage(workspace, viz.id); assert(pkg.exportedBy.appVersion === "0.6.0" && pkg.format === "quackviz-visualization", "package invalid"); } },
+  { name: "map-export: package version", run: () => { const workspace = createWorkspace(); const query = addOrUpdateQuery(workspace, { id: "query_1", sql: "SELECT * FROM t", sourceTables: ["t"] }); const viz = addOrUpdateVisualization(workspace, { id: "viz_1", name: "Map", queryId: query.id, spec: point }); const pkg = exportMapVisualizationPackage(workspace, viz.id); assert(pkg.exportedBy.appVersion === APP_VERSION && pkg.format === "quackviz-visualization", "package invalid"); } },
 ];

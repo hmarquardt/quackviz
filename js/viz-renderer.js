@@ -1,4 +1,5 @@
 import { DEPENDENCIES } from "./constants.js";
+import { adaptEChartsClick } from "./selection-adapters.js";
 import { compileVisualizationSpec } from "./viz-compiler.js";
 
 let echartsModule = null;
@@ -47,6 +48,7 @@ export function resizeChartInstance(instanceId) {
 export function disposeChartInstance(instanceId) {
   const entry = instances.get(instanceId);
   if (!entry) return;
+  if (entry.clickHandler) entry.chart.off?.("click", entry.clickHandler);
   entry.observer.disconnect();
   entry.chart.dispose();
   instances.delete(instanceId);
@@ -56,7 +58,7 @@ export function disposeAllCharts() {
   for (const id of [...instances.keys()]) disposeChartInstance(id);
 }
 
-export async function renderVisualization(element, spec, dataset, themeTokens, instanceId = "main") {
+export async function renderVisualization(element, spec, dataset, themeTokens, instanceId = "main", interaction = null) {
   try {
     if (!dataset?.rows?.length) {
       showEmpty(element, "Run a query to render a chart.", instanceId);
@@ -65,6 +67,7 @@ export async function renderVisualization(element, spec, dataset, themeTokens, i
     const option = compileVisualizationSpec(spec, dataset, themeTokens);
     await createChartInstance(element, instanceId, themeTokens.themeName);
     renderChartInstance(instanceId, option);
+    bindChartInteraction(instanceId, spec, interaction);
     status.error = null;
     return option;
   } catch (error) {
@@ -73,6 +76,25 @@ export async function renderVisualization(element, spec, dataset, themeTokens, i
     showEmpty(element, `Chart failed to render: ${error.message}`, instanceId);
     throw error;
   }
+}
+
+function bindChartInteraction(instanceId, spec, interaction) {
+  const entry = instances.get(instanceId);
+  if (!entry?.chart) return;
+  if (entry.clickHandler) entry.chart.off?.("click", entry.clickHandler);
+  entry.clickHandler = null;
+  if (!interaction?.onEvent) return;
+  const field = interaction.field || spec.encoding?.x?.field || spec.encoding?.series?.field;
+  if (!field) return;
+  const handler = (payload) => {
+    try {
+      interaction.onEvent(adaptEChartsClick(payload, interaction.source || {}, field));
+    } catch (error) {
+      interaction.onError?.(error);
+    }
+  };
+  entry.chart.on?.("click", handler);
+  entry.clickHandler = handler;
 }
 
 export function disposeChart() {

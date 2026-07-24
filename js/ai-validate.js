@@ -5,6 +5,8 @@ import { validateVisualizationSpec } from "./viz-spec.js";
 import { REPORT_SECTION_TYPES } from "./report.js";
 import { boundaryCatalog } from "./map-boundaries.js";
 import { isMapSpec } from "./map-spec.js";
+import { normalizeInteractionBinding, validateInteractionBinding } from "./interaction-bindings.js";
+import { createDrilldown } from "./drilldown.js";
 
 const PROPOSAL_KEYS = new Set(["id", "title", "question", "description", "sourceTables", "confidence", "sql", "expectedColumns", "visualization", "reasoning", "assumptions", "cautions"]);
 const ROOT_KEYS = new Set(["contract", "contractVersion", "summary", "proposals"]);
@@ -17,6 +19,8 @@ const REPORT_OUTLINE_KEYS = new Set(["contract", "contractVersion", "title", "su
 const REPORT_NARRATIVE_KEYS = new Set(["contract", "contractVersion", "headline", "summary", "findings", "recommendations", "cautions", "sourceReferences"]);
 const REPORT_CRITIQUE_KEYS = new Set(["contract", "contractVersion", "summary", "issues", "recommendations", "missingElements", "unsupportedClaims", "cautions"]);
 const REGION_REPAIR_KEYS = new Set(["contract", "contractVersion", "boundaryId", "mappings", "unresolved"]);
+const INTERACTION_KEYS = new Set(["contract", "contractVersion", "summary", "bindings", "drilldowns", "parameters", "assumptions", "cautions"]);
+const INTERACTION_CRITIQUE_KEYS = new Set(["contract", "contractVersion", "summary", "issues", "recommendations", "circularRisks", "cautions"]);
 
 export function parseAiJson(text) {
   const trimmed = String(text || "").trim();
@@ -40,7 +44,53 @@ export function validateAiResponse(payload, { expectedContract, knownTables = []
   if (expectedContract === AI_CONTRACTS.reportCritique) return validateAiReportCritique(payload);
   if (expectedContract === AI_CONTRACTS.mapProposals) return validateMapProposalResponse(payload, knownTables, dataset);
   if (expectedContract === AI_CONTRACTS.regionRepair) return validateRegionRepair(payload);
+  if (expectedContract === AI_CONTRACTS.interactions) return validateAiInteractions(payload, dataset || {});
+  if (expectedContract === AI_CONTRACTS.interactionCritique) return validateAiInteractionCritique(payload);
   return validateProposalResponse(payload, knownTables, dataset);
+}
+
+export function validateAiInteractions(payload, dashboard = {}) {
+  const errors = baseContract(payload, AI_CONTRACTS.interactions, INTERACTION_KEYS);
+  if (!Array.isArray(payload?.bindings)) errors.push(error("bindings", "Interaction bindings must be an array."));
+  if (!Array.isArray(payload?.drilldowns)) errors.push(error("drilldowns", "Drill-down proposals must be an array."));
+  const workspace = dashboard.workspace || { visualizations: dashboard.visualizations || [], queries: dashboard.queries || [] };
+  const normalizedBindings = [];
+  for (const [index, proposed] of (payload?.bindings || []).entries()) {
+    const binding = normalizeInteractionBinding({
+      name: proposed.title || proposed.name,
+      source: { cardId: proposed.sourceCardId, field: proposed.sourceField, eventKinds: proposed.eventKinds },
+      targets: { mode: proposed.targetMode || "compatible", cardIds: proposed.targetCardIds || [] },
+      action: proposed.action,
+      clearBehavior: proposed.clearBehavior,
+    });
+    const validation = validateInteractionBinding(binding, dashboard, workspace);
+    errors.push(...validation.errors.map((item) => error(`bindings[${index}].${item.path}`, item.message)));
+    if (binding.action.transform && !["identity", "string", "number", "date", "lowercase", "uppercase"].includes(binding.action.transform)) errors.push(error(`bindings[${index}].action.transform`, "Unsupported parameter transform."));
+    normalizedBindings.push(validation.binding);
+  }
+  const cardIds = new Set((dashboard.layout || []).map((card) => card.id));
+  const vizIds = new Set((workspace.visualizations || []).map((viz) => viz.id));
+  for (const [index, proposed] of (payload?.drilldowns || []).entries()) {
+    if (proposed.sourceCardId && !cardIds.has(proposed.sourceCardId)) errors.push(error(`drilldowns[${index}].sourceCardId`, "Unknown source card."));
+    if (!proposed.triggerField) errors.push(error(`drilldowns[${index}].triggerField`, "Trigger field is required."));
+    if (proposed.targetVisualizationId && !vizIds.has(proposed.targetVisualizationId)) errors.push(error(`drilldowns[${index}].targetVisualizationId`, "Unknown target visualization."));
+    createDrilldown({
+      name: proposed.title,
+      triggerField: proposed.triggerField,
+      target: { type: proposed.targetVisualizationId ? "visualization" : "detail-table", visualizationId: proposed.targetVisualizationId || null, queryId: proposed.targetQueryId || null },
+      parameterBindings: proposed.parameterBindings || [],
+    });
+  }
+  return { valid: errors.length === 0, errors, warnings: [], interactions: { ...payload, normalizedBindings } };
+}
+
+export function validateAiInteractionCritique(payload) {
+  const errors = baseContract(payload, AI_CONTRACTS.interactionCritique, INTERACTION_CRITIQUE_KEYS);
+  if (!payload?.summary) errors.push(error("summary", "Interaction critique summary is required."));
+  for (const key of ["issues", "recommendations", "circularRisks", "cautions"]) {
+    if (!Array.isArray(payload?.[key])) errors.push(error(key, `${key} must be an array.`));
+  }
+  return { valid: errors.length === 0, errors, warnings: [], critique: payload };
 }
 
 export function validateProposalResponse(payload, knownTables = [], dataset = null) {

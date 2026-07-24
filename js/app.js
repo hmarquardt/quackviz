@@ -9,6 +9,14 @@ import { validateAiResponse, validateRepair } from "./ai-validate.js";
 import { addCard, addDashboard, createDashboard, deleteDashboard as deleteDashboardModel, duplicateCard, duplicateDashboard as duplicateDashboardModel, findDashboard, moveCard, removeCard, resizeCard, updateDashboard } from "./dashboard.js";
 import { createSnapshotHtml, exportDashboardPackage, importDashboardPackage } from "./dashboard-export.js";
 import { invalidateDashboardCache, refreshCard, refreshDashboard as runDashboardRefresh } from "./dashboard-runner.js";
+import { createInteractionBus } from "./interaction-bus.js";
+import { addInteractionBinding, normalizeInteractionBinding, validateInteractionBinding } from "./interaction-bindings.js";
+import { createInteractionEvent, validateInteractionEvent } from "./interaction-events.js";
+import { applyInteractionResolution, clearInteractionState, createInteractionState } from "./interaction-state.js";
+import { resolveInteraction } from "./interaction-resolver.js";
+import { adaptEChartsClick, adaptMapLibreFeatureClick } from "./selection-adapters.js";
+import { buildBreadcrumb, drillDown, drillUp } from "./drilldown.js";
+import { compileParameterizedSql } from "./parameters.js";
 import { initializeDatabase, executeSql, tableExists } from "./db.js";
 import { loadIncludedSalesSample } from "./import.js";
 import { exportMapVisualizationPackage } from "./map-export.js";
@@ -37,6 +45,8 @@ let saveSuppressed = false;
 let currentAiAbortController = null;
 let currentDashboardAbortController = null;
 let currentReportAbortController = null;
+const interactionBus = createInteractionBus();
+state.interaction.subscriptionCount = interactionBus.subscriptionCount();
 
 window.addEventListener("error", (event) => addError("app", "window-error", event.error || new Error(event.message)));
 window.addEventListener("unhandledrejection", (event) => addError("app", "unhandled-rejection", event.reason));
@@ -156,6 +166,9 @@ function bindEvents() {
   el.dashboardImportInput.addEventListener("change", importDashboardFromFile);
   el.snapshotDashboard.addEventListener("click", snapshotActiveDashboard);
   el.copyDeploymentInfo.addEventListener("click", copyDeploymentInfo);
+  el.addInteractionBinding.addEventListener("click", addDashboardInteractionBinding);
+  el.emitInteraction.addEventListener("click", emitDashboardInteraction);
+  el.clearInteractions.addEventListener("click", clearDashboardInteractions);
   el.newReport.addEventListener("click", createNewReport);
   el.reportSelect.addEventListener("change", () => updateWorkspace((workspace) => { workspace.active.reportId = el.reportSelect.value || null; }));
   el.renameReport.addEventListener("click", renameActiveReport);
@@ -472,6 +485,94 @@ function clearDashboardFilters() {
   invalidateDashboardCache();
 }
 
+function addDashboardInteractionBinding() {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  const el = elements();
+  const binding = normalizeInteractionBinding({
+    name: `${label(el.interactionSourceField.value)} ${el.interactionAction.value}`,
+    source: { cardId: el.interactionSourceCard.value, field: el.interactionSourceField.value, eventKinds: ["category", "multi-category", "map-region", "legend"] },
+    targets: { mode: "all-except-source", cardIds: [] },
+    action: { type: el.interactionAction.value, dashboardField: el.interactionSourceField.value, operator: "in" },
+  });
+  const validation = validateInteractionBinding(binding, dashboard, state.workspace);
+  if (!validation.valid) {
+    state.interaction.lastError = validation.errors[0]?.message;
+    addError("interaction", "save-binding", new Error(validation.errors.map((error) => error.message).join(" ")));
+    return;
+  }
+  updateWorkspace((workspace) => {
+    const active = findDashboard(workspace, dashboard.id);
+    addInteractionBinding(active, validation.binding);
+  });
+}
+
+async function emitDashboardInteraction() {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  const el = elements();
+  const card = dashboard.layout.find((item) => item.id === el.interactionSourceCard.value);
+  const viz = state.workspace.visualizations.find((item) => item.id === card?.visualizationId);
+  const event = createInteractionEvent({
+    source: { dashboardId: dashboard.id, cardId: card?.id, visualizationId: viz?.id, renderer: isMapSpec(viz?.spec) ? "maplibre" : "echarts" },
+    selection: { kind: isMapSpec(viz?.spec) ? "map-region" : "category", field: el.interactionSourceField.value, semanticType: "category", values: [el.interactionValue.value] },
+  });
+  const published = interactionBus.publish(event);
+  state.interaction.subscriptionCount = interactionBus.subscriptionCount();
+  if (!published.ok) {
+    state.interaction.lastError = published.errors[0]?.message;
+    addError("interaction", "publish", new Error(published.errors.map((error) => error.message).join(" ")));
+    return;
+  }
+  if (published.duplicate) {
+    state.interaction.lastLoopPreventionEvent = event.id;
+    notify();
+    return;
+  }
+  await applyDashboardInteraction(event);
+}
+
+async function applyDashboardInteraction(event) {
+  const started = performance.now();
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  const resolution = resolveInteraction({ event, dashboard, workspace: state.workspace });
+  updateWorkspace((workspace) => {
+    const active = findDashboard(workspace, dashboard.id);
+    active.interactions.state = applyInteractionResolution(active.interactions?.state || createInteractionState(), event, resolution);
+  });
+  state.interaction.lastEvent = event;
+  state.interaction.lastResolution = resolution;
+  state.interaction.cardsHighlighted = resolution.highlightedCardIds || [];
+  state.interaction.cardsRequeried = resolution.affectedCardIds || [];
+  invalidateDashboardCache();
+  for (const cardId of resolution.affectedCardIds || []) {
+    const active = activeDashboardOrNull();
+    const card = active?.layout.find((item) => item.id === cardId);
+    if (!active || !card) continue;
+    state.dashboard.cardStates[cardId] = { cardId, status: "loading" };
+    notify();
+    state.dashboard.cardStates[cardId] = await refreshCard({ dashboard: active, card, workspace: state.workspace, loadedTables: state.loadedTables, bypassCache: true });
+  }
+  state.interaction.lastDurationMs = Math.round(performance.now() - started);
+  notify();
+  await renderDashboardCharts();
+}
+
+function clearDashboardInteractions() {
+  const dashboard = activeDashboardOrNull();
+  if (!dashboard) return;
+  updateWorkspace((workspace) => {
+    const active = findDashboard(workspace, dashboard.id);
+    active.interactions.state = clearInteractionState(active.interactions?.state || createInteractionState());
+  });
+  state.interaction.lastEvent = null;
+  state.interaction.lastResolution = null;
+  state.interaction.cardsRequeried = [];
+  state.interaction.cardsHighlighted = [];
+  invalidateDashboardCache();
+}
+
 async function renderDashboardCharts() {
   await new Promise((resolve) => requestAnimationFrame(resolve));
   const dashboard = activeDashboardOrNull();
@@ -482,16 +583,48 @@ async function renderDashboardCharts() {
     if (!element || cardState?.status !== "ready") continue;
     try {
       if (isMapSpec(cardState.spec)) {
-        const compiled = await renderMapVisualization(element, cardState.spec, cardState.result, getThemeTokens(activeThemeName()), `dashboard_map_${card.id}`);
+        const compiled = await renderMapVisualization(element, cardState.spec, cardState.result, getThemeTokens(activeThemeName()), `dashboard_map_${card.id}`, dashboardInteractionContext(dashboard, card, cardState, "maplibre"));
         state.map.lastDiagnostics = compiled.diagnostics;
       } else {
-        await renderVisualization(element, cardState.spec, cardState.result, getThemeTokens(activeThemeName()), `dashboard_${card.id}`);
+        await renderVisualization(element, cardState.spec, cardState.result, getThemeTokens(activeThemeName()), `dashboard_${card.id}`, dashboardInteractionContext(dashboard, card, cardState, "echarts"));
       }
     } catch (error) {
       state.dashboard.cardStates[card.id] = { ...cardState, status: "error", error: error.message };
       addError("dashboard", "render-card", error);
     }
   }
+}
+
+function dashboardInteractionContext(dashboard, card, cardState, renderer) {
+  return {
+    source: {
+      dashboardId: dashboard.id,
+      cardId: card.id,
+      visualizationId: cardState.visualization?.id || card.visualizationId,
+      renderer,
+    },
+    onEvent: handleRendererInteraction,
+    onError: (error) => {
+      state.interaction.lastError = error.message;
+      addError("interaction", `${renderer}-adapter`, error);
+    },
+  };
+}
+
+function handleRendererInteraction(event) {
+  const published = interactionBus.publish(event);
+  state.interaction.subscriptionCount = interactionBus.subscriptionCount();
+  if (!published.ok) {
+    state.interaction.lastError = published.errors[0]?.message;
+    addError("interaction", "publish-renderer-event", new Error(published.errors.map((error) => error.message).join(" ")));
+    return;
+  }
+  if (published.duplicate) {
+    state.interaction.lastLoopPreventionEvent = event.id;
+    notify();
+    return;
+  }
+  applyDashboardInteraction(event).catch((error) => addError("interaction", "apply-renderer-event", error));
 }
 
 function handleDashboardAction(event) {
@@ -582,12 +715,15 @@ function snapshotActiveDashboard() {
 }
 
 function copyDeploymentInfo() {
+  const dashboard = activeDashboardOrNull();
   copyText(JSON.stringify({
     appVersion: APP_VERSION,
     buildDate: BUILD_DATE,
     workspaceId: state.workspace.id,
     activeDashboardId: state.workspace.active.dashboardId,
     activeMapVisualizationId: isMapSpec(state.currentSpec) ? state.workspace.active.visualizationId : null,
+    activeInteractionCount: dashboard?.interactions?.state?.activeSelections?.length || 0,
+    activeDrillPath: dashboard?.interactions?.state?.drillPath || [],
     url: location.href,
   }, null, 2)).catch((error) => addError("ui", "copy-deployment-info", error));
 }
@@ -1416,6 +1552,115 @@ async function runSelfTest() {
     const mapReport = addReport(workspace, createReport({ title: "Map report" }));
     addSection(mapReport, { type: "visualization", source: { visualizationId: viz.id } });
     if (dashboard.layout[0].visualizationId !== viz.id || mapReport.sections[0].source.visualizationId !== viz.id) throw new Error("Map relationship failed.");
+  });
+  let interactionWorkspace = null;
+  let interactionDashboard = null;
+  let interactionCards = null;
+  let interactionEvent = null;
+  await step("Create category interaction event", () => {
+    interactionEvent = createInteractionEvent({ source: { dashboardId: "dashboard_interactions", cardId: "card_source", visualizationId: "viz_source", renderer: "echarts" }, selection: { kind: "category", field: "region", semanticType: "category", values: ["East"] } });
+    if (!interactionEvent.id || interactionEvent.selection.values[0] !== "East") throw new Error("Event was not created.");
+  });
+  await step("Validate interaction event", () => {
+    const validation = validateInteractionEvent(interactionEvent);
+    if (!validation.valid) throw new Error(validation.errors[0]?.message || "Event invalid.");
+  });
+  await step("Publish through interaction bus", () => {
+    const bus = createInteractionBus();
+    let seen = null;
+    bus.subscribe((event) => { seen = event.id; });
+    const published = bus.publish(interactionEvent);
+    if (!published.ok || seen !== interactionEvent.id) throw new Error("Interaction was not published.");
+  });
+  await step("Resolve compatible binding", () => {
+    interactionWorkspace = createWorkspace();
+    const query = addOrUpdateQuery(interactionWorkspace, { id: "query_interaction_self", name: "Interaction Q", sql: "SELECT region, revenue FROM qv_self_test", sourceTables: ["qv_self_test"] });
+    const sourceViz = addOrUpdateVisualization(interactionWorkspace, { id: "viz_interaction_source", name: "Source", queryId: query.id, spec: { ...validSpec, encoding: { x: { field: "region", dataType: "category" }, y: [{ field: "revenue", dataType: "number" }] } } });
+    const targetViz = addOrUpdateVisualization(interactionWorkspace, { id: "viz_interaction_target", name: "Target", queryId: query.id, spec: { ...validSpec, encoding: { x: { field: "region", dataType: "category" }, y: [{ field: "revenue", dataType: "number" }] } } });
+    interactionDashboard = addDashboard(interactionWorkspace, createDashboard({ id: "dashboard_interactions", name: "Interactions" }));
+    const sourceCard = addCard(interactionDashboard, sourceViz.id);
+    const targetCard = addCard(interactionDashboard, targetViz.id);
+    interactionCards = { sourceCard, targetCard };
+    addInteractionBinding(interactionDashboard, { source: { cardId: sourceCard.id, field: "region", eventKinds: ["category"] }, targets: { mode: "explicit", cardIds: [targetCard.id] }, action: { type: "filter", dashboardField: "region", operator: "in" } });
+    interactionEvent = createInteractionEvent({ source: { dashboardId: interactionDashboard.id, cardId: sourceCard.id, visualizationId: sourceViz.id, renderer: "echarts" }, selection: { kind: "category", field: "region", semanticType: "category", values: ["East"] } });
+    const resolution = resolveInteraction({ event: interactionEvent, dashboard: interactionDashboard, workspace: interactionWorkspace });
+    if (resolution.affectedCardIds[0] !== targetCard.id) throw new Error("Target card was not resolved.");
+  });
+  await step("Apply interaction filter", () => {
+    const resolution = resolveInteraction({ event: interactionEvent, dashboard: interactionDashboard, workspace: interactionWorkspace });
+    const next = applyInteractionResolution(createInteractionState(), interactionEvent, resolution);
+    if (next.activeFilters[0]?.value[0] !== "East") throw new Error("Interaction filter missing.");
+  });
+  await step("Compile string parameter", () => {
+    const result = compileParameterizedSql("SELECT {{ region }} AS region", [{ name: "region", dataType: "string" }], { region: "East" });
+    if (!result.sql.includes("'East'")) throw new Error("String parameter not encoded.");
+  });
+  await step("Compile numeric parameter", () => {
+    const result = compileParameterizedSql("SELECT {{ revenue }} AS revenue", [{ name: "revenue", dataType: "number" }], { revenue: "12.5" });
+    if (!result.sql.includes("12.5")) throw new Error("Numeric parameter not encoded.");
+  });
+  await step("Compile date parameter", () => {
+    const result = compileParameterizedSql("SELECT {{ start_date }} AS start_date", [{ name: "start_date", dataType: "date" }], { start_date: "2026-01-01" });
+    if (!result.sql.includes("'2026-01-01'")) throw new Error("Date parameter not encoded.");
+  });
+  await step("Reject raw SQL parameter", () => {
+    let rejected = false;
+    try {
+      compileParameterizedSql("SELECT {{ value }}", [{ name: "value", dataType: "number" }], { value: "1; DROP TABLE x" });
+    } catch {
+      rejected = true;
+    }
+    if (!rejected) throw new Error("SQL fragment-like numeric parameter was accepted.");
+  });
+  await step("Perform category cross-filter", () => {
+    const resolution = resolveInteraction({ event: interactionEvent, dashboard: interactionDashboard, workspace: interactionWorkspace });
+    if (!resolution.filters.length || resolution.highlightedCardIds.length) throw new Error("Cross-filter resolution failed.");
+  });
+  await step("Perform highlight-only interaction", () => {
+    interactionDashboard.interactions.bindings = [];
+    addInteractionBinding(interactionDashboard, { source: { cardId: interactionCards.sourceCard.id, field: "region", eventKinds: ["category"] }, targets: { mode: "explicit", cardIds: [interactionCards.targetCard.id] }, action: { type: "highlight", dashboardField: "region" } });
+    const resolution = resolveInteraction({ event: interactionEvent, dashboard: interactionDashboard, workspace: interactionWorkspace });
+    if (resolution.affectedCardIds.length || resolution.highlightedCardIds[0] !== interactionCards.targetCard.id) throw new Error("Highlight-only resolution failed.");
+  });
+  await step("Perform visualization drill-down", () => {
+    const drill = drillDown({ triggerField: "region", hierarchy: [{ field: "region", label: "Region" }, { field: "category", label: "Category" }] }, "East");
+    if (!buildBreadcrumb(drill.path).includes("East")) throw new Error("Breadcrumb missing drill value.");
+  });
+  await step("Build breadcrumb and drill up", () => {
+    const drilled = drillDown({ triggerField: "region", hierarchy: [{ field: "region", label: "Region" }, { field: "category", label: "Category" }] }, "East");
+    const up = drillUp(drilled);
+    if (up.path.length !== 0 || buildBreadcrumb(drilled.path) !== "All > East") throw new Error("Drill up failed.");
+  });
+  await step("Prevent circular binding", () => {
+    const dashboard = createDashboard();
+    dashboard.layout = [{ id: "card_a", visualizationId: "viz_a" }, { id: "card_b", visualizationId: "viz_b" }];
+    dashboard.interactions.bindings = [normalizeInteractionBinding({ source: { cardId: "card_b", field: "region" }, targets: { mode: "explicit", cardIds: ["card_a"] } })];
+    const validation = validateInteractionBinding({ source: { cardId: "card_a", field: "region" }, targets: { mode: "explicit", cardIds: ["card_b"] } }, dashboard, createWorkspace());
+    if (validation.valid) throw new Error("Circular binding accepted.");
+  });
+  await step("Adapt ECharts click event", () => {
+    const event = adaptEChartsClick({ name: "East", seriesName: "Revenue" }, { dashboardId: "dashboard_interactions", cardId: "card_source", visualizationId: "viz_source" }, "region");
+    if (event.selection.values[0] !== "East") throw new Error("ECharts click adapter failed.");
+  });
+  await step("Adapt MapLibre region event", () => {
+    const event = adaptMapLibreFeatureClick({ id: "CA", properties: { state: "CA" } }, { dashboardId: "dashboard_interactions", cardId: "card_map", visualizationId: "viz_map" }, "state");
+    if (event.selection.kind !== "map-region" || event.selection.values[0] !== "CA") throw new Error("MapLibre region adapter failed.");
+  });
+  await step("Persist and reload interaction definitions", () => {
+    const restored = hydrateWorkspace(JSON.parse(JSON.stringify(interactionWorkspace)));
+    if (!restored.dashboards[0].interactions.bindings.length) throw new Error("Interaction bindings did not survive hydration.");
+  });
+  await step("Parse valid AI interaction proposal", () => {
+    const payload = { contract: AI_CONTRACTS.interactions, contractVersion: 1, summary: "Use region as a selector.", bindings: [{ title: "Region selector", sourceCardId: interactionCards.sourceCard.id, sourceField: "region", eventKinds: ["category"], targetMode: "explicit", targetCardIds: [interactionCards.targetCard.id], action: { type: "filter", dashboardField: "region", operator: "in" } }], drilldowns: [], parameters: [], assumptions: [], cautions: [] };
+    interactionDashboard.workspace = interactionWorkspace;
+    const result = validateAiResponse(payload, { expectedContract: AI_CONTRACTS.interactions, dataset: interactionDashboard });
+    delete interactionDashboard.workspace;
+    if (!result.valid) throw new Error(result.errors[0]?.message || "AI interaction proposal invalid.");
+  });
+  await step("Reject invalid AI interaction proposal", () => {
+    const payload = { contract: AI_CONTRACTS.interactions, contractVersion: 1, summary: "Bad", bindings: [{ title: "Bad", sourceCardId: "missing", sourceField: "region", eventKinds: ["category"], targetMode: "explicit", targetCardIds: [interactionCards.targetCard.id], action: { type: "filter", dashboardField: "region", operator: "in" } }], drilldowns: [], parameters: [], assumptions: [], cautions: [] };
+    const result = validateAiResponse(payload, { expectedContract: AI_CONTRACTS.interactions, dataset: interactionDashboard });
+    if (result.valid) throw new Error("Invalid AI interaction proposal accepted.");
   });
   await step("Footer version matches APP_VERSION", () => {
     if (!elements().footerVersion.textContent.includes(APP_VERSION)) throw new Error("Footer version mismatch.");

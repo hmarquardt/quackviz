@@ -320,6 +320,18 @@ th {
   min-width: 180px;
 }
 
+.interaction-toolbar {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  align-items: end;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  margin-bottom: 10px;
+}
+
 .dashboard-filter-bar {
   display: flex;
   flex-wrap: wrap;

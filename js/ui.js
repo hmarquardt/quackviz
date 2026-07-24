@@ -82,6 +82,14 @@ export function elements() {
     dashboardImportInput: $("dashboardImportInput"),
     snapshotDashboard: $("snapshotDashboard"),
     copyDeploymentInfo: $("copyDeploymentInfo"),
+    interactionSourceCard: $("interactionSourceCard"),
+    interactionSourceField: $("interactionSourceField"),
+    interactionValue: $("interactionValue"),
+    interactionAction: $("interactionAction"),
+    addInteractionBinding: $("addInteractionBinding"),
+    emitInteraction: $("emitInteraction"),
+    clearInteractions: $("clearInteractions"),
+    interactionStateBar: $("interactionStateBar"),
     dashboardFilterBar: $("dashboardFilterBar"),
     dashboardCanvas: $("dashboardCanvas"),
     reportStatus: $("reportStatus"),
@@ -403,6 +411,29 @@ function renderDebug(state) {
       footerVersion: elements().footerVersion.textContent,
       buildDate: BUILD_DATE,
     },
+    interactions: {
+      activeInteractionCount: activeDashboard?.interactions?.state?.activeSelections?.length || 0,
+      activeFilterInteractionCount: activeDashboard?.interactions?.state?.activeFilters?.length || 0,
+      activeHighlightCount: activeDashboard?.interactions?.state?.activeHighlights?.length || 0,
+      activeParameterCount: Object.keys(activeDashboard?.interactions?.state?.activeParameters || {}).length,
+      currentDrillDepth: activeDashboard?.interactions?.state?.drillPath?.length || 0,
+      interactionBindingCount: activeDashboard?.interactions?.bindings?.length || 0,
+      lastInteractionType: state.interaction.lastEvent?.selection?.kind || null,
+      lastSourceCard: state.interaction.lastEvent?.source?.cardId || null,
+      lastAffectedCardCount: state.interaction.lastResolution?.affectedCardIds?.length || 0,
+      lastSkippedCardCount: state.interaction.lastResolution?.skippedTargets?.length || 0,
+      lastPropagationDepth: state.interaction.lastEvent?.lineage?.length || 0,
+      lastLoopPreventionEvent: state.interaction.lastLoopPreventionEvent,
+      lastInteractionToRenderDuration: state.interaction.lastDurationMs,
+      cardsRequeried: state.interaction.cardsRequeried,
+      cardsHighlighted: state.interaction.cardsHighlighted,
+      eventSubscriptionCount: state.interaction.subscriptionCount || 0,
+      lastAiInteractionAction: ["suggest-interactions", "suggest-drilldowns", "suggest-parameters", "critique-interactions", "repair-binding"].includes(state.ai.lastDiagnostics?.action) ? state.ai.lastDiagnostics.action : null,
+      lastAiInteractionProposalCount: state.ai.lastDiagnostics?.interactionProposalCount || 0,
+      lastInteractionError: state.interaction.lastError,
+      footerVersion: elements().footerVersion.textContent,
+      buildDate: BUILD_DATE,
+    },
     lastQueryRuntime: state.currentResult?.runtimeMs ?? null,
     lastError: state.errors[0] || null,
     ai: {
@@ -522,7 +553,19 @@ function renderDashboard(state) {
     el.dashboardCanvas.innerHTML = `<div class="empty-state">Create a dashboard to add saved visualizations.</div>`;
     return;
   }
+  el.interactionSourceCard.innerHTML = active.layout.map((card) => {
+    const viz = state.workspace.visualizations.find((item) => item.id === card.visualizationId);
+    return `<option value="${html(card.id)}">${html(viz?.name || card.id)}</option>`;
+  }).join("");
   el.dashboardStatus.textContent = `${active.name} · ${active.layout.length} cards`;
+  const interactionState = active.interactions?.state;
+  el.interactionStateBar.innerHTML = interactionState?.activeSelections?.length
+    ? [
+      ...interactionState.activeFilters.map((filter) => `<span class="notice">Filtered: ${html(filter.field)} ${html(filter.operator)} ${html(Array.isArray(filter.value) ? filter.value.join(", ") : filter.value ?? "")}</span>`),
+      ...interactionState.activeHighlights.map((item) => `<span class="notice">Highlighted: ${html(item.field)} ${html((item.values || []).join(", "))}</span>`),
+      ...(state.interaction.lastResolution?.skippedTargets || []).map((item) => `<span class="notice">Skipped ${html(item.cardId)}: ${html(item.reason)}</span>`),
+    ].join("")
+    : `<span class="status">No active linked selections.</span>`;
   el.dashboardFilterBar.innerHTML = active.filters.length
     ? active.filters.map((filter) => `<span class="notice">${html(filter.name)} ${html(filter.operator)} ${html(Array.isArray(filter.value) ? filter.value.join(", ") : filter.value ?? "")}</span>`).join("")
     : `<span class="status">No shared filters. Dashboard filters apply only when a compatible result field exists.</span>`;
@@ -645,6 +688,23 @@ function renderAiCurrentAnalysis(state) {
   const el = elements().aiCurrentAnalysis;
   const item = (state.ai.proposals || []).find((proposal) => proposal.id === state.ai.selectedProposalId);
   if (!item) {
+    const current = state.ai.currentResult;
+    if (current?.validation?.interactions || current?.validation?.critique) {
+      el.innerHTML = `<h3>${html(current.action)}</h3>
+        <p>${current.validation.valid ? "Validation: valid" : `Validation: ${html(current.validation.errors.map((error) => error.message).join(" "))}`}</p>
+        <pre class="code-block">${html(JSON.stringify({
+          contract: current.raw?.contract,
+          contractVersion: current.raw?.contractVersion,
+          summary: current.raw?.summary,
+          bindings: current.raw?.bindings,
+          drilldowns: current.raw?.drilldowns,
+          parameters: current.raw?.parameters,
+          issues: current.raw?.issues,
+          recommendations: current.raw?.recommendations,
+          cautions: current.raw?.cautions,
+        }, null, 2))}</pre>`;
+      return;
+    }
     el.innerHTML = `<div class="empty-state">Inspect a proposal to see SQL, validation, EXPLAIN, preview, and chart status.</div>`;
     return;
   }

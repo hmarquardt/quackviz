@@ -37,6 +37,15 @@ export const state = {
     lastSnapshotAt: null,
     lastError: null,
   },
+  interaction: {
+    lastEvent: null,
+    lastResolution: null,
+    lastDurationMs: null,
+    cardsRequeried: [],
+    cardsHighlighted: [],
+    lastLoopPreventionEvent: null,
+    lastError: null,
+  },
   report: {
     selectedSectionId: null,
     sectionStates: {},

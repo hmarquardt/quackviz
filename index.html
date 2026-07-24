@@ -167,6 +167,19 @@
             <button id="snapshotDashboard">Export snapshot</button>
             <button id="copyDeploymentInfo">Copy deployment info</button>
           </div>
+          <div class="interaction-toolbar">
+            <label>Source card <select id="interactionSourceCard"></select></label>
+            <label>Source field <input id="interactionSourceField" placeholder="region"></label>
+            <label>Selection value <input id="interactionValue" placeholder="East"></label>
+            <label>Action <select id="interactionAction">
+              <option value="filter">Cross-filter</option>
+              <option value="highlight">Linked highlight</option>
+            </select></label>
+            <button id="addInteractionBinding">Save binding</button>
+            <button id="emitInteraction">Apply selection</button>
+            <button id="clearInteractions">Clear interactions</button>
+          </div>
+          <div id="interactionStateBar" class="dashboard-filter-bar"></div>
           <div id="dashboardFilterBar" class="dashboard-filter-bar"></div>
           <div id="dashboardCanvas" class="dashboard-grid" aria-live="polite"></div>
         </section>

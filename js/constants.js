@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.6.0";
+export const APP_VERSION = "0.7.0";
 export const BUILD_DATE = "2026-07-24";
 export const WORKSPACE_SCHEMA_VERSION = 1;
 export const VIZ_SPEC_VERSION = 1;
@@ -6,6 +6,7 @@ export const AI_CONTRACT_VERSION = 1;
 export const DASHBOARD_VERSION = 1;
 export const REPORT_VERSION = 1;
 export const MAP_SPEC_VERSION = 1;
+export const INTERACTION_VERSION = 1;
 
 export const DEPENDENCIES = {
   echarts: {
@@ -63,6 +64,8 @@ export const MAP_POINT_LIMIT = 10000;
 export const MAP_CLUSTER_POINT_LIMIT = 100000;
 export const MAP_TOOLTIP_FIELD_LIMIT = 10;
 export const MAP_CATEGORY_WARNING_LIMIT = 12;
+export const INTERACTION_HISTORY_LIMIT = 100;
+export const INTERACTION_MAX_PROPAGATION_DEPTH = 4;
 
 export const OPENROUTER = {
   provider: "openrouter",

@@ -1,24 +1,25 @@
 # QuackViz
 
-QuackViz is a static, browser-local DuckDB-WASM, Apache ECharts, and MapLibre GL JS analytical workspace. Current application version: `0.6.0`, build date `2026-07-24`.
+QuackViz is a static, browser-local DuckDB-WASM, Apache ECharts, and MapLibre GL JS analytical workspace. Current application version: `0.7.0`, build date `2026-07-24`.
 
-## Current Milestone: Maps
+## Current Milestone: Coordinated Interactions
 
-QuackViz now includes a constrained geospatial visualization path for point data, regional values, spatial profiling, map-backed saved visualizations, and structured AI map proposals.
+QuackViz now includes declarative dashboard interactions for cross-filtering, linked highlighting, typed query parameters, drill-down state, interaction history, and structured AI interaction proposals. The existing import, profiling, SQL, visualization, AI, dashboard, report, map, persistence, export, tests, diagnostics, and footer workflows remain in place.
 
-The map workflow is:
+The interaction workflow is:
 
 ```text
-import and profile data
--> detect geographic fields
--> generate spatial SQL where needed
--> validate coordinates or region joins
--> compile QuackViz map spec
--> render map
--> save, dashboard, report, or export
+user selects a mark, category, range, or region
+-> QuackViz emits a typed interaction event
+-> dashboard resolves compatible bindings
+-> parameter and filter state updates
+-> affected SQL queries are safely compiled or wrapped
+-> DuckDB refreshes affected cards
+-> charts and maps update
+-> interaction lineage remains visible and reversible
 ```
 
-Streaming, collaboration, cross-filtering, remote database connectivity, routing, geocoding services, 3D globes, and native GIS editing are not implemented.
+Remote database connectivity, real-time streaming, collaboration, authentication, cloud synchronization, arbitrary callbacks, and AI-generated event handlers are not implemented.
 
 ## Run Locally
 
@@ -51,6 +52,109 @@ The DOM-free module tests can also be run under Node. Automated tests use mocked
   - `https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css`
 
 Pinned versions are centralized in `js/constants.js`, shown in Debug, reflected in the persistent footer, and included in workspace, dashboard, report, AI, and map export metadata.
+
+## Interaction Model
+
+Interaction events are versioned plain objects. They record source dashboard/card/visualization IDs, renderer type, typed selection payload, modifiers, timestamp, and lineage.
+
+Supported event kinds include:
+
+- Category and multi-category selection
+- Numeric and date ranges
+- Point, table-row, legend, brush, map-feature, and map-region selection
+- Drill-down, drill-up, clear-selection, and parameter-change events
+
+Events are validated before publishing. Renderer-native event objects are not persisted; adapters extract only scalar values needed by QuackViz.
+
+## Binding Model
+
+Dashboards persist declarative interaction bindings under `dashboard.interactions.bindings`.
+
+Bindings define:
+
+- Source card, source field, and event kinds
+- Target mode: compatible, explicit card IDs, all except source, or self where explicitly allowed
+- Action: filter, highlight, set parameter, drill, detail table, or map viewport
+- Clear behavior and enabled state
+
+Self-targeting and circular bindings are rejected unless explicitly safe. Skipped targets are surfaced with reasons.
+
+Cross-filter bindings apply only to targets with compatible field or parameter bindings.
+
+## Cross-Filtering and Linked Highlighting
+
+Cross-filtering uses typed filter objects and the existing safe dashboard-filter wrapper. It does not concatenate raw interaction strings into SQL.
+
+Linked highlighting may update a chart without re-running its SQL query.
+
+The current UI includes a compact dashboard interaction toolbar for creating a simple field binding, applying a typed selection, clearing interactions, and inspecting active filter/highlight state. This is intentionally minimal for the milestone; richer binding editors can build on the same model.
+
+## Parameters
+
+Saved queries may define typed parameters:
+
+- String
+- Number
+- Integer
+- Boolean
+- Date
+- Datetime
+- Category
+- Multi-category
+
+The placeholder syntax is:
+
+```sql
+SELECT *
+FROM sales
+WHERE order_date >= {{ start_date }}
+  AND region IN {{ regions }};
+```
+
+QuackViz interaction parameters are typed values, not raw SQL fragments.
+
+Parameter compilation uses trusted literal encoders for strings, numbers, booleans, dates, datetimes, and multi-value lists. Parameters cannot become identifiers, operators, table names, sort directions, or arbitrary expressions.
+
+## Drill-Down and Breadcrumbs
+
+The drill-down module supports declarative drill definitions, hierarchy state, drill-up/reset behavior, and breadcrumbs such as:
+
+```text
+All > East > Furniture
+```
+
+Same-visualization drill-down is supported only when explicit hierarchy metadata exists. QuackViz does not rewrite arbitrary hand-written SQL to invent drill dimensions.
+
+## Selective Refresh
+
+Interaction resolution determines affected cards, highlighted cards, and skipped cards. Filter and parameter actions refresh only cards requiring query changes. Highlight-only actions avoid DuckDB execution when the current result already contains the compatible field.
+
+The dashboard runner includes interaction filters and active parameters in its result-cache signature, so repeated selections can reuse cached results while source, query, filter, parameter, and workspace revisions still invalidate safely.
+
+## AI Interaction Proposals
+
+The AI action catalog now includes:
+
+- Suggest dashboard interactions
+- Suggest drill-downs
+- Suggest parameters
+- Critique interaction design
+- Repair broken interaction
+
+Added contracts:
+
+- `quackviz-ai-interactions`
+- `quackviz-ai-interaction-critique`
+
+AI interaction output is validated against the active dashboard. Unknown card IDs, unknown fields, unsupported transforms, circular bindings, arbitrary JavaScript, event-handler code, executable-looking strings, and raw SQL fragments as parameter values are rejected. AI changes require user approval and are not automatically activated.
+
+## Map Interactions
+
+MapLibre feature-click adapters can emit typed map-region and map-feature interaction events. Map viewport filtering is not enabled by default. Cluster clicks remain navigation unless an explicit binding is added later.
+
+## Table Interactions
+
+Table-row selection adapters emit typed table-row events containing selected scalar values. Cell content is treated as data and is not allowed to become raw SQL.
 
 ## Supported Map Types
 
@@ -239,7 +343,7 @@ Map visualization package export uses:
   "formatVersion": 1,
   "exportedBy": {
     "app": "QuackViz",
-    "appVersion": "0.6.0",
+    "appVersion": "0.7.0",
     "buildDate": "2026-07-24"
   },
   "query": {},
@@ -263,7 +367,7 @@ QuackViz does not silently execute AI-generated SQL.
 
 ## Footer and Versioning
 
-The persistent footer shows the canonical app version and build date. Debug, workspace metadata, dashboard exports, report exports, map exports, and AI diagnostics use the same constants.
+The persistent footer shows the canonical app version and build date. Debug, workspace metadata, dashboard exports, report exports, map exports, interaction diagnostics, and AI diagnostics use the same constants. “Copy deployment info” includes app version, build date, workspace ID, active dashboard ID, active map visualization ID, active interaction count, active drill path, and page URL.
 
 ## Accessibility and Performance
 
@@ -284,6 +388,9 @@ Default limits:
 - Equal interval, quantile, and manual choropleth breaks are reserved but not fully implemented.
 - Map image export depends on browser/WebGL/CORS behavior.
 - Report map snapshots still use the report snapshot mechanism and may not capture live MapLibre tiles.
+- The first interaction UI is intentionally compact: it supports simple field bindings and selection application, while advanced binding editing and visual keyboard selection affordances are reserved for follow-up work.
+- Drill-through detail tables and same-visualization query regeneration have model support but only limited UI exposure in this milestone.
+- Cross-filter compatibility is based on declared visualization encodings and result fields. QuackViz does not silently rewrite arbitrary SQL to force dashboard filters.
 - No geocoding service is included.
 - No routing, streaming, collaboration, or remote database connectivity is included.
 - Browser self-test requires a static server and CDN access for DuckDB/ECharts/MapLibre runtime paths.
@@ -292,8 +399,8 @@ Default limits:
 
 Recommended focus:
 
-1. Vendor detailed boundary GeoJSON/TopoJSON files under `vendor/boundaries/`.
-2. Add a true boundary mapping editor for approved region mappings.
-3. Add real map image capture into report snapshots.
-4. Add choropleth classification controls for equal interval, quantile, and manual breaks.
-5. Add optional DuckDB-WASM spatial extension smoke tests for WKT and spatial predicates.
+1. Build a richer interaction authoring inspector with compatibility previews per card.
+2. Add direct renderer-to-dashboard event wiring for live ECharts and MapLibre clicks.
+3. Expand drill-through detail panels and parameter controls in the dashboard UI.
+4. Add accessible keyboard alternatives for common chart selections.
+5. Add advanced map/report interaction coverage once the binding editor stabilizes.

@@ -12,6 +12,8 @@ export const AI_CONTRACTS = {
   reportCritique: "quackviz-ai-report-critique",
   mapProposals: "quackviz-ai-map-proposals",
   regionRepair: "quackviz-ai-region-repair",
+  interactions: "quackviz-ai-interactions",
+  interactionCritique: "quackviz-ai-interaction-critique",
 };
 
 export const AI_ACTIONS = [
@@ -35,6 +37,11 @@ export const AI_ACTIONS = [
   { id: "repair-region-matching", label: "Repair region matching" },
   { id: "critique-map", label: "Critique current map" },
   { id: "improve-map", label: "Improve current map" },
+  { id: "suggest-interactions", label: "Suggest dashboard interactions" },
+  { id: "suggest-drilldowns", label: "Suggest drill-downs" },
+  { id: "suggest-parameters", label: "Suggest parameters" },
+  { id: "critique-interactions", label: "Critique interaction design" },
+  { id: "repair-binding", label: "Repair broken interaction" },
 ];
 
 export function buildSystemPrompt(extra = "") {
@@ -45,6 +52,7 @@ Application version: ${APP_VERSION}.
 Use DuckDB SQL dialect.
 Only read-only analytical SQL is allowed. SQL must begin with SELECT or WITH.
 Do not use INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, COPY, INSTALL, LOAD, ATTACH, DETACH, CALL, PRAGMA, external URL reads, JavaScript, HTML, ECharts raw options, formatter functions, event handlers, or arbitrary URLs.
+Interaction proposals must be declarative bindings, typed parameters, or drill-down definitions only. Do not return JavaScript callbacks, raw SQL fragments as parameter values, or event handler code.
 Supported QuackViz visualization spec version: ${VIZ_SPEC_VERSION}.
 Supported chart types: ${SUPPORTED_CHART_TYPES.join(", ")}.
 Supported map types: ${SUPPORTED_MAP_TYPES.join(", ")}.
@@ -66,6 +74,8 @@ export function actionContract(action) {
   if (["suggest-maps", "build-map"].includes(action)) return AI_CONTRACTS.mapProposals;
   if (action === "repair-region-matching") return AI_CONTRACTS.regionRepair;
   if (["explain-spatial-pattern", "repair-map-sql", "critique-map", "improve-map"].includes(action)) return AI_CONTRACTS.mapProposals;
+  if (["suggest-interactions", "suggest-drilldowns", "suggest-parameters", "repair-binding"].includes(action)) return AI_CONTRACTS.interactions;
+  if (action === "critique-interactions") return AI_CONTRACTS.interactionCritique;
   return AI_CONTRACTS.proposals;
 }
 

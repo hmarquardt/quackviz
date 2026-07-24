@@ -1,4 +1,8 @@
 import { DASHBOARD_GRID_COLUMNS, DASHBOARD_VERSION } from "./constants.js";
+import { normalizeInteractionBinding } from "./interaction-bindings.js";
+import { createInteractionState } from "./interaction-state.js";
+import { createDrilldown } from "./drilldown.js";
+import { normalizeParameter } from "./parameters.js";
 import { deepClone, nowIso, uid } from "./utils.js";
 
 export const CARD_SIZES = {
@@ -29,6 +33,7 @@ export function createDashboard(input = {}) {
       compactCards: false,
       concurrencyLimit: 3,
     },
+    interactions: { bindings: [], parameters: [], drilldowns: [], state: null },
     provenance: { createdBy: "user", provider: null, model: null, interactionId: null, createdAt: timestamp },
     ...input,
   });
@@ -56,6 +61,12 @@ export function normalizeDashboard(input) {
       compactCards: Boolean(input.settings?.compactCards),
       concurrencyLimit: Number(input.settings?.concurrencyLimit || 3),
     },
+    interactions: {
+      bindings: Array.isArray(input.interactions?.bindings) ? input.interactions.bindings.map(normalizeInteractionBinding) : [],
+      parameters: Array.isArray(input.interactions?.parameters) ? input.interactions.parameters.map(normalizeParameter) : [],
+      drilldowns: Array.isArray(input.interactions?.drilldowns) ? input.interactions.drilldowns.map(createDrilldown) : [],
+      state: input.interactions?.state ? createInteractionState(input.interactions.state) : null,
+    },
     provenance: {
       createdBy: input.provenance?.createdBy || input.createdBy || "user",
       provider: input.provenance?.provider ?? null,
@@ -79,6 +90,7 @@ export function normalizeCard(card) {
     showDescription: Boolean(card.showDescription),
     refreshEnabled: card.refreshEnabled !== false,
     localFilters: Array.isArray(card.localFilters) ? card.localFilters.map(normalizeFilter) : [],
+    parameterValues: card.parameterValues || {},
     provenance: card.provenance || null,
   };
 }

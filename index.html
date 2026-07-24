@@ -234,6 +234,26 @@
           <label>Chart type <select id="chartType"></select></label>
           <label>X field <select id="xField"></select></label>
           <label>Y field <select id="yField"></select></label>
+          <div id="mapBuilderControls" class="map-builder-controls">
+            <label>Latitude field <select id="mapLatitudeField"></select></label>
+            <label>Longitude field <select id="mapLongitudeField"></select></label>
+            <label>Region field <select id="mapRegionField"></select></label>
+            <label>Value field <select id="mapValueField"></select></label>
+            <label>Label field <select id="mapLabelField"></select></label>
+            <label>Category color <select id="mapColorField"></select></label>
+            <label>Numeric size <select id="mapSizeField"></select></label>
+            <label>Boundary <select id="mapBoundary"></select></label>
+            <label>Basemap <select id="mapBasemap">
+              <option value="blank">Blank local background</option>
+              <option value="light">Default light</option>
+              <option value="dark">Default dark</option>
+            </select></label>
+            <div class="check-grid">
+              <label><input id="mapCluster" type="checkbox"> Cluster</label>
+              <label><input id="mapLegend" type="checkbox" checked> Map legend</label>
+            </div>
+            <button id="exportMapPackage" class="wide">Export map package</button>
+          </div>
           <label>Title <input id="vizTitle"></label>
           <div class="check-grid">
             <label><input id="smoothLine" type="checkbox" checked> Smooth line</label>

@@ -11,6 +11,15 @@ import { createSnapshotHtml, exportDashboardPackage, importDashboardPackage } fr
 import { invalidateDashboardCache, refreshCard, refreshDashboard as runDashboardRefresh } from "./dashboard-runner.js";
 import { initializeDatabase, executeSql, tableExists } from "./db.js";
 import { loadIncludedSalesSample } from "./import.js";
+import { exportMapVisualizationPackage } from "./map-export.js";
+import { compileMapSpec } from "./map-compiler.js";
+import { loadBoundary } from "./map-boundaries.js";
+import { rowsToPointGeoJson } from "./map-data.js";
+import { matchRegions } from "./map-match.js";
+import { renderMapVisualization, disposeMapInstance, exportMapImage } from "./map-renderer.js";
+import { isMapSpec } from "./map-spec.js";
+import { validateMapSpec } from "./map-validate.js";
+import { inferGeographicSemantic, profileCoordinates } from "./spatial-profile.js";
 import { runQuery, buildQuerySaveInput } from "./query.js";
 import { addReport, addSection, createReport, deleteReport as deleteReportModel, duplicateReport as duplicateReportModel, duplicateSection, findReport, findSection, moveSection, removeSection, setSectionVisible, updateReport } from "./report.js";
 import { createReportPackageFiles, exportReportJson, importReportJson, renderReportHtml, renderReportMarkdown } from "./report-export.js";
@@ -98,7 +107,12 @@ function bindEvents() {
     input.addEventListener("input", rebuildVisualization);
     input.addEventListener("change", rebuildVisualization);
   }
+  for (const input of [el.mapLatitudeField, el.mapLongitudeField, el.mapRegionField, el.mapValueField, el.mapLabelField, el.mapColorField, el.mapSizeField, el.mapBoundary, el.mapBasemap, el.mapCluster, el.mapLegend]) {
+    input.addEventListener("input", rebuildVisualization);
+    input.addEventListener("change", rebuildVisualization);
+  }
   el.saveViz.addEventListener("click", saveCurrentVisualization);
+  el.exportMapPackage.addEventListener("click", exportCurrentMapPackage);
   el.copySpec.addEventListener("click", () => copyText(el.specEditor.value).catch((error) => addError("ui", "copy-spec", error)));
   el.copyDebug.addEventListener("click", () => copyText(el.debugReport.textContent).catch((error) => addError("ui", "copy-debug", error)));
   el.resetWorkspace.addEventListener("click", resetWorkspace);
@@ -240,6 +254,7 @@ function saveCurrentQuery() {
 
 function specFromControls() {
   const el = elements();
+  if (el.chartType.value.startsWith("map-")) return mapSpecFromControls(el);
   const y = state.currentResult?.columns.find((column) => column.name === el.yField.value);
   return {
     version: 1,
@@ -268,6 +283,40 @@ function specFromControls() {
   };
 }
 
+function mapSpecFromControls(el) {
+  const type = el.chartType.value;
+  const columnType = (field, fallback) => state.currentResult?.columns.find((column) => column.name === field)?.inferredType || fallback;
+  const field = (name, dataType, extra = {}) => name ? { field: name, dataType, label: label(name), ...extra } : null;
+  return {
+    version: 1,
+    type,
+    title: el.vizTitle.value || "Untitled map",
+    subtitle: "",
+    dataset: { queryId: state.workspace.active.queryId },
+    encoding: {
+      latitude: field(el.mapLatitudeField.value, "latitude"),
+      longitude: field(el.mapLongitudeField.value, "longitude"),
+      label: field(el.mapLabelField.value, columnType(el.mapLabelField.value, "category")),
+      tooltip: [],
+      size: field(el.mapSizeField.value, "number", /revenue|cost|profit/i.test(el.mapSizeField.value) ? { format: "currency" } : {}),
+      color: field(el.mapColorField.value, columnType(el.mapColorField.value, "category")),
+      value: field(el.mapValueField.value, "number", /revenue|cost|profit/i.test(el.mapValueField.value) ? { format: "currency" } : {}),
+      region: field(el.mapRegionField.value, guessRegionDataType(el.mapRegionField.value), { boundary: el.mapBoundary.value || "us-states" }),
+    },
+    map: {
+      style: el.mapBasemap.value || "blank",
+      initialView: type === "map-choropleth" ? "fit-boundary" : "fit-data",
+      cluster: type === "map-clustered-point" || el.mapCluster.checked,
+      showLegend: el.mapLegend.checked,
+      showTooltip: true,
+      showScale: true,
+      classification: "continuous",
+      classCount: 5,
+      approvedMappings: state.currentSpec?.map?.approvedMappings || [],
+    },
+  };
+}
+
 async function rebuildVisualization() {
   if (!state.currentResult || state.currentResult.error) {
     showEmpty(elements().chart, "Run a successful query to render a chart.");
@@ -281,12 +330,32 @@ async function rebuildVisualization() {
     return;
   }
   try {
-    const option = await renderVisualization(elements().chart, validation.spec, state.currentResult, getThemeTokens(activeThemeName()));
+    const option = isMapSpec(validation.spec)
+      ? await renderCurrentMap(validation.spec)
+      : await renderVisualization(elements().chart, validation.spec, state.currentResult, getThemeTokens(activeThemeName()));
     setCurrentOption(option);
-    elements().vizStatus.textContent = "Chart rendered.";
+    elements().vizStatus.textContent = isMapSpec(validation.spec) ? "Map rendered." : "Chart rendered.";
   } catch (error) {
-    addError("chart", "render", error);
+    addError(isMapSpec(validation.spec) ? "map" : "chart", "render", error);
   }
+}
+
+async function renderCurrentMap(spec) {
+  const validation = await validateMapSpec(spec, state.currentResult);
+  setCurrentSpec(validation.spec);
+  if (!validation.valid) {
+    showEmpty(elements().chart, "Fix map validation errors to render a map.");
+    const error = new Error(validation.errors.map((item) => item.message).join(" "));
+    error.validation = validation;
+    throw error;
+  }
+  if (validation.spec.encoding.latitude?.field && validation.spec.encoding.longitude?.field) {
+    state.map.lastCoordinateProfile = profileCoordinates(state.currentResult.rows || [], validation.spec.encoding.latitude.field, validation.spec.encoding.longitude.field);
+  }
+  const compiled = await renderMapVisualization(elements().chart, validation.spec, state.currentResult, getThemeTokens(activeThemeName()), "main_map");
+  state.map.lastDiagnostics = compiled.diagnostics;
+  state.map.lastError = null;
+  return compiled;
 }
 
 function activeDashboardOrNull() {
@@ -412,7 +481,12 @@ async function renderDashboardCharts() {
     const element = document.getElementById(`dashboardChart_${card.id}`);
     if (!element || cardState?.status !== "ready") continue;
     try {
-      await renderVisualization(element, cardState.spec, cardState.result, getThemeTokens(activeThemeName()), `dashboard_${card.id}`);
+      if (isMapSpec(cardState.spec)) {
+        const compiled = await renderMapVisualization(element, cardState.spec, cardState.result, getThemeTokens(activeThemeName()), `dashboard_map_${card.id}`);
+        state.map.lastDiagnostics = compiled.diagnostics;
+      } else {
+        await renderVisualization(element, cardState.spec, cardState.result, getThemeTokens(activeThemeName()), `dashboard_${card.id}`);
+      }
     } catch (error) {
       state.dashboard.cardStates[card.id] = { ...cardState, status: "error", error: error.message };
       addError("dashboard", "render-card", error);
@@ -444,7 +518,7 @@ function handleDashboardAction(event) {
   updateWorkspace((workspace) => {
     const active = findDashboard(workspace, dashboard.id);
     if (action === "duplicate-card") duplicateCard(active, cardId);
-    if (action === "remove-card") { removeCard(active, cardId); disposeChartInstance(`dashboard_${cardId}`); delete state.dashboard.cardStates[cardId]; }
+    if (action === "remove-card") { removeCard(active, cardId); disposeChartInstance(`dashboard_${cardId}`); disposeMapInstance(`dashboard_map_${cardId}`); delete state.dashboard.cardStates[cardId]; }
     if (action === "move-left") moveCard(active, cardId, -1, 0);
     if (action === "move-right") moveCard(active, cardId, 1, 0);
     if (action === "move-up") moveCard(active, cardId, 0, -1);
@@ -513,6 +587,7 @@ function copyDeploymentInfo() {
     buildDate: BUILD_DATE,
     workspaceId: state.workspace.id,
     activeDashboardId: state.workspace.active.dashboardId,
+    activeMapVisualizationId: isMapSpec(state.currentSpec) ? state.workspace.active.visualizationId : null,
     url: location.href,
   }, null, 2)).catch((error) => addError("ui", "copy-deployment-info", error));
 }
@@ -525,6 +600,22 @@ function downloadJson(filename, payload) {
   anchor.download = filename;
   anchor.click();
   URL.revokeObjectURL(url);
+}
+
+function exportCurrentMapPackage() {
+  const vizId = state.workspace.active.visualizationId;
+  if (!vizId) {
+    addError("map", "export-package", new Error("Save the map visualization before exporting a package."));
+    return;
+  }
+  try {
+    const pkg = exportMapVisualizationPackage(state.workspace, vizId);
+    state.map.lastExportAt = pkg.exportedBy.exportedAt;
+    downloadJson(`${safeFileName(pkg.visualization.name)}_map.json`, pkg);
+  } catch (error) {
+    state.map.lastError = error.message;
+    addError("map", "export-package", error);
+  }
 }
 
 function safeFileName(name) {
@@ -978,6 +1069,17 @@ function loadSpecIntoControls(spec) {
   el.showPoints.checked = Boolean(spec.options?.showPoints);
   el.zoom.checked = spec.options?.zoom !== false;
   el.legend.checked = Boolean(spec.options?.legend);
+  el.mapLatitudeField.value = spec.encoding?.latitude?.field || "";
+  el.mapLongitudeField.value = spec.encoding?.longitude?.field || "";
+  el.mapRegionField.value = spec.encoding?.region?.field || "";
+  el.mapValueField.value = spec.encoding?.value?.field || "";
+  el.mapLabelField.value = spec.encoding?.label?.field || "";
+  el.mapColorField.value = spec.encoding?.color?.field || "";
+  el.mapSizeField.value = spec.encoding?.size?.field || "";
+  el.mapBoundary.value = spec.encoding?.region?.boundary || "us-states";
+  el.mapBasemap.value = spec.map?.style || "blank";
+  el.mapCluster.checked = Boolean(spec.map?.cluster || spec.type === "map-clustered-point");
+  el.mapLegend.checked = spec.map?.showLegend !== false;
 }
 
 async function resetWorkspace() {
@@ -1234,6 +1336,87 @@ async function runSelfTest() {
     const key = getOpenRouterApiKey();
     if (key && payload.includes(key)) throw new Error("API key leaked into report export.");
   });
+  const mapDataset = {
+    columns: [{ name: "latitude", inferredType: "latitude" }, { name: "longitude", inferredType: "longitude" }, { name: "state", inferredType: "us-state-abbreviation" }, { name: "revenue", inferredType: "number" }],
+    rows: [{ latitude: 40, longitude: -75, state: "CA", revenue: 100 }, { latitude: 41, longitude: -76, state: "NY", revenue: 200 }, { latitude: 120, longitude: 45, state: "ZZ", revenue: 50 }],
+  };
+  const pointMapSpec = { version: 1, type: "map-point", title: "Self-test map", dataset: { queryId }, encoding: { latitude: { field: "latitude", dataType: "latitude" }, longitude: { field: "longitude", dataType: "longitude" }, label: null, tooltip: [], size: null, color: null, value: null, region: null }, map: { style: "blank", showLegend: true, showTooltip: true } };
+  const choroplethSpec = { version: 1, type: "map-choropleth", title: "Self-test states", dataset: { queryId }, encoding: { latitude: null, longitude: null, label: null, tooltip: [], size: null, color: null, value: { field: "revenue", dataType: "number" }, region: { field: "state", dataType: "us-state-abbreviation", boundary: "us-states" } }, map: { style: "blank", showLegend: true, showTooltip: true, approvedMappings: [] } };
+  await step("Detect latitude and longitude", () => {
+    if (inferGeographicSemantic({ name: "latitude", type: "DOUBLE" }, [40]).semanticType !== "latitude") throw new Error("Latitude not detected.");
+    if (inferGeographicSemantic({ name: "longitude", type: "DOUBLE" }, [-75]).semanticType !== "longitude") throw new Error("Longitude not detected.");
+  });
+  await step("Profile coordinate validity", () => {
+    const profile = profileCoordinates(mapDataset.rows, "latitude", "longitude");
+    if (profile.validPairCount !== 2 || profile.invalidPairCount !== 1) throw new Error("Coordinate profile counts are wrong.");
+  });
+  await step("Convert rows to GeoJSON", () => {
+    const geo = rowsToPointGeoJson(mapDataset.rows, pointMapSpec);
+    if (geo.geojson.features.length !== 2 || geo.diagnostics.invalidCoordinateCount !== 1) throw new Error("GeoJSON conversion failed.");
+  });
+  await step("Validate point-map spec", async () => {
+    const validation = await validateMapSpec(pointMapSpec, mapDataset);
+    if (!validation.valid) throw new Error(validation.errors[0]?.message || "Point map invalid.");
+  });
+  await step("Compile point map", async () => {
+    const compiled = await compileMapSpec(pointMapSpec, mapDataset, getThemeTokens(activeThemeName()));
+    if (!compiled.sources.quackviz_points || !compiled.layers.some((layer) => layer.id === "points")) throw new Error("Point map compile failed.");
+  });
+  await step("Render clustered layer config", async () => {
+    const compiled = await compileMapSpec({ ...pointMapSpec, type: "map-clustered-point", map: { cluster: true } }, mapDataset, getThemeTokens(activeThemeName()));
+    if (!compiled.layers.some((layer) => layer.id === "clusters")) throw new Error("Cluster layer missing.");
+  });
+  await step("Match US state abbreviations", async () => {
+    const boundary = await loadBoundary("us-states");
+    const match = matchRegions({ rows: [{ state: "CA" }, { state: "NY" }], regionField: "state", regionType: "us-state-abbreviation", boundary });
+    if (match.matchRate !== 1) throw new Error("State match failed.");
+  });
+  await step("Validate choropleth spec", async () => {
+    const validation = await validateMapSpec(choroplethSpec, mapDataset);
+    if (!validation.valid) throw new Error(validation.errors[0]?.message || "Choropleth invalid.");
+  });
+  await step("Compile choropleth", async () => {
+    const compiled = await compileMapSpec(choroplethSpec, mapDataset, getThemeTokens(activeThemeName()));
+    if (!compiled.layers.some((layer) => layer.id === "regions")) throw new Error("Choropleth layer missing.");
+  });
+  await step("Detect unmatched regions", async () => {
+    const boundary = await loadBoundary("us-states");
+    const match = matchRegions({ rows: [{ state: "N. Carolina" }], regionField: "state", regionType: "us-state-name", boundary });
+    if (match.unmatchedDataRegions !== 1) throw new Error("Unmatched region not detected.");
+  });
+  await step("Apply approved mapping", async () => {
+    const boundary = await loadBoundary("us-states");
+    const match = matchRegions({ rows: [{ state: "N. Carolina" }], regionField: "state", regionType: "us-state-name", boundary, approvedMappings: [{ sourceValue: "N. Carolina", boundaryValue: "North Carolina" }] });
+    if (match.matchRate !== 1) throw new Error("Approved mapping failed.");
+  });
+  await step("Export map visualization package", () => {
+    const workspace = createWorkspace();
+    const query = addOrUpdateQuery(workspace, { id: queryId, sql: "SELECT latitude, longitude FROM qv_self_test", sourceTables: ["qv_self_test"] });
+    const viz = addOrUpdateVisualization(workspace, { id: "viz_map_self", name: "Self-test map", queryId: query.id, spec: pointMapSpec });
+    if (exportMapVisualizationPackage(workspace, viz.id).exportedBy.appVersion !== APP_VERSION) throw new Error("Map package version mismatch.");
+  });
+  await step("Parse valid AI map proposal", () => {
+    const result = validateAiResponse({ contract: AI_CONTRACTS.mapProposals, contractVersion: 1, summary: "Map", proposals: [{ id: "proposal_map", title: "Map", question: "Where?", description: "Point map", sourceTables: ["qv_self_test"], confidence: 0.9, sql: "SELECT latitude, longitude FROM qv_self_test", expectedColumns: [{ name: "latitude", dataType: "latitude" }, { name: "longitude", dataType: "longitude" }], visualization: pointMapSpec, reasoning: { whyThisQuestion: "Location.", whyThisMap: "Points." }, assumptions: [], cautions: [] }] }, { expectedContract: AI_CONTRACTS.mapProposals, knownTables: ["qv_self_test"], dataset: mapDataset });
+    if (!result.proposals[0].valid) throw new Error(result.proposals[0].errors[0]?.message || "AI map invalid.");
+  });
+  await step("Reject unsafe AI map proposal", () => {
+    const result = validateAiResponse({ contract: AI_CONTRACTS.mapProposals, contractVersion: 1, summary: "Map", proposals: [{ id: "proposal_map", title: "Map", question: "Where?", description: "Point map", sourceTables: ["qv_self_test"], confidence: 0.9, sql: "DROP TABLE qv_self_test", expectedColumns: [{ name: "latitude", dataType: "latitude" }, { name: "longitude", dataType: "longitude" }], visualization: pointMapSpec, reasoning: { whyThisQuestion: "Location.", whyThisMap: "Points." }, assumptions: [], cautions: [] }] }, { expectedContract: AI_CONTRACTS.mapProposals, knownTables: ["qv_self_test"], dataset: mapDataset });
+    if (result.proposals[0].valid) throw new Error("Unsafe AI map accepted.");
+  });
+  await step("Parse region-repair proposal", () => {
+    const result = validateAiResponse({ contract: AI_CONTRACTS.regionRepair, contractVersion: 1, boundaryId: "us-states", mappings: [{ sourceValue: "N. Carolina", boundaryValue: "North Carolina", confidence: 0.98, reason: "Common abbreviation." }], unresolved: [] }, { expectedContract: AI_CONTRACTS.regionRepair });
+    if (!result.valid) throw new Error(result.errors[0]?.message || "Region repair invalid.");
+  });
+  await step("Add map to temporary dashboard and report", () => {
+    const workspace = createWorkspace();
+    const query = addOrUpdateQuery(workspace, { id: queryId, sql: "SELECT latitude, longitude FROM qv_self_test", sourceTables: ["qv_self_test"] });
+    const viz = addOrUpdateVisualization(workspace, { id: "viz_map_self", name: "Self-test map", queryId: query.id, spec: pointMapSpec });
+    const dashboard = addDashboard(workspace, createDashboard({ name: "Map dashboard" }));
+    addCard(dashboard, viz.id);
+    const mapReport = addReport(workspace, createReport({ title: "Map report" }));
+    addSection(mapReport, { type: "visualization", source: { visualizationId: viz.id } });
+    if (dashboard.layout[0].visualizationId !== viz.id || mapReport.sections[0].source.visualizationId !== viz.id) throw new Error("Map relationship failed.");
+  });
   await step("Footer version matches APP_VERSION", () => {
     if (!elements().footerVersion.textContent.includes(APP_VERSION)) throw new Error("Footer version mismatch.");
   });
@@ -1255,4 +1438,15 @@ function activeThemeName() {
 
 function label(value) {
   return String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function guessRegionDataType(fieldName) {
+  const name = String(fieldName || "").toLowerCase();
+  if (/county.*fips|fips.*county/.test(name)) return "us-county-fips";
+  if (/fips/.test(name)) return "us-state-fips";
+  if (/state/.test(name)) return "us-state-abbreviation";
+  if (/country.*iso2|iso2|alpha.?2/.test(name)) return "country-code-iso2";
+  if (/country.*iso3|iso3|alpha.?3/.test(name)) return "country-code-iso3";
+  if (/country/.test(name)) return "country-name";
+  return "region";
 }

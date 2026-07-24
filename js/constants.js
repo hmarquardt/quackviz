@@ -1,10 +1,11 @@
-export const APP_VERSION = "0.5.0";
-export const BUILD_DATE = "2026-07-23";
+export const APP_VERSION = "0.6.0";
+export const BUILD_DATE = "2026-07-24";
 export const WORKSPACE_SCHEMA_VERSION = 1;
 export const VIZ_SPEC_VERSION = 1;
 export const AI_CONTRACT_VERSION = 1;
 export const DASHBOARD_VERSION = 1;
 export const REPORT_VERSION = 1;
+export const MAP_SPEC_VERSION = 1;
 
 export const DEPENDENCIES = {
   echarts: {
@@ -16,6 +17,12 @@ export const DEPENDENCIES = {
     packageName: "@duckdb/duckdb-wasm",
     version: "1.33.1-dev57.0",
     url: "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm",
+  },
+  maplibre: {
+    packageName: "maplibre-gl",
+    version: "5.24.0",
+    url: "https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/+esm",
+    cssUrl: "https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css",
   },
 };
 
@@ -45,12 +52,17 @@ FROM sales
 GROUP BY 1
 ORDER BY 1;`;
 
-export const SUPPORTED_CHART_TYPES = ["line", "bar"];
+export const SUPPORTED_MAP_TYPES = ["map-point", "map-clustered-point", "map-proportional-symbol", "map-category-point", "map-choropleth", "map-region-symbol"];
+export const SUPPORTED_CHART_TYPES = ["line", "bar", ...SUPPORTED_MAP_TYPES];
 export const TOOLTIP_MODES = ["axis", "item", false];
 export const ORIENTATIONS = ["vertical"];
 export const DASHBOARD_GRID_COLUMNS = 12;
 export const DASHBOARD_CONCURRENCY_LIMIT = 3;
 export const REPORT_CONCURRENCY_LIMIT = 2;
+export const MAP_POINT_LIMIT = 10000;
+export const MAP_CLUSTER_POINT_LIMIT = 100000;
+export const MAP_TOOLTIP_FIELD_LIMIT = 10;
+export const MAP_CATEGORY_WARNING_LIMIT = 12;
 
 export const OPENROUTER = {
   provider: "openrouter",

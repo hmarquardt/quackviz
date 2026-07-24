@@ -3,6 +3,8 @@ import { AI_CONTRACTS } from "./ai-contracts.js";
 import { validateSqlSafety } from "./ai-sql-safety.js";
 import { validateVisualizationSpec } from "./viz-spec.js";
 import { REPORT_SECTION_TYPES } from "./report.js";
+import { boundaryCatalog } from "./map-boundaries.js";
+import { isMapSpec } from "./map-spec.js";
 
 const PROPOSAL_KEYS = new Set(["id", "title", "question", "description", "sourceTables", "confidence", "sql", "expectedColumns", "visualization", "reasoning", "assumptions", "cautions"]);
 const ROOT_KEYS = new Set(["contract", "contractVersion", "summary", "proposals"]);
@@ -14,6 +16,7 @@ const DASHBOARD_CRITIQUE_KEYS = new Set(["contract", "contractVersion", "summary
 const REPORT_OUTLINE_KEYS = new Set(["contract", "contractVersion", "title", "subtitle", "audience", "sections", "assumptions", "cautions"]);
 const REPORT_NARRATIVE_KEYS = new Set(["contract", "contractVersion", "headline", "summary", "findings", "recommendations", "cautions", "sourceReferences"]);
 const REPORT_CRITIQUE_KEYS = new Set(["contract", "contractVersion", "summary", "issues", "recommendations", "missingElements", "unsupportedClaims", "cautions"]);
+const REGION_REPAIR_KEYS = new Set(["contract", "contractVersion", "boundaryId", "mappings", "unresolved"]);
 
 export function parseAiJson(text) {
   const trimmed = String(text || "").trim();
@@ -35,6 +38,8 @@ export function validateAiResponse(payload, { expectedContract, knownTables = []
   if (expectedContract === AI_CONTRACTS.reportOutline) return validateAiReportOutline(payload, dataset || {});
   if (expectedContract === AI_CONTRACTS.reportNarrative) return validateAiReportNarrative(payload);
   if (expectedContract === AI_CONTRACTS.reportCritique) return validateAiReportCritique(payload);
+  if (expectedContract === AI_CONTRACTS.mapProposals) return validateMapProposalResponse(payload, knownTables, dataset);
+  if (expectedContract === AI_CONTRACTS.regionRepair) return validateRegionRepair(payload);
   return validateProposalResponse(payload, knownTables, dataset);
 }
 
@@ -70,11 +75,41 @@ export function validateProposal(proposal, index = 0, knownTables = [], dataset 
     const validationDataset = dataset || { columns: [...expectedNames].map((name) => ({ name, inferredType: expectedType(proposal, name), duckType: "" })) };
     const specValidation = validateVisualizationSpec(viz, validationDataset);
     errors.push(...specValidation.errors.map((item) => error(`${path}.visualization.${item.path}`, item.message)));
-    for (const field of [viz.encoding?.x, ...(viz.encoding?.y || [])]) {
+    for (const field of proposalFields(viz)) {
       if (field?.field && !expectedNames.has(field.field)) errors.push(error(`${path}.visualization`, `Field '${field.field}' is not produced by expectedColumns.`));
     }
   }
   return { proposal, valid: errors.length === 0, errors, warnings, sqlSafety, status: "new" };
+}
+
+export function validateMapProposalResponse(payload, knownTables = [], dataset = null) {
+  const result = validateProposalResponse({ ...payload, contract: AI_CONTRACTS.proposals }, knownTables, dataset);
+  if (payload?.contract !== AI_CONTRACTS.mapProposals) result.errors.push(error("contract", "Unsupported or missing map proposal contract."));
+  const boundaryIds = new Set(boundaryCatalog().map((item) => item.id));
+  for (const [index, item] of (result.proposals || []).entries()) {
+    const viz = item.proposal?.visualization;
+    if (!isMapSpec(viz)) item.errors.push(error(`proposals[${index}].visualization.type`, "Map proposals must include a supported map visualization spec."));
+    if (viz?.map && Object.hasOwn(viz.map, "rawStyle")) item.errors.push(error(`proposals[${index}].visualization.map.rawStyle`, "Raw MapLibre styles are not allowed."));
+    const boundary = viz?.encoding?.region?.boundary;
+    if (boundary && !boundaryIds.has(boundary)) item.errors.push(error(`proposals[${index}].visualization.encoding.region.boundary`, `Unknown boundary '${boundary}'.`));
+    item.valid = item.errors.length === 0;
+  }
+  result.valid = result.errors.length === 0;
+  return result;
+}
+
+export function validateRegionRepair(payload) {
+  const errors = baseContract(payload, AI_CONTRACTS.regionRepair, REGION_REPAIR_KEYS);
+  const boundaryIds = new Set(boundaryCatalog().map((item) => item.id));
+  if (!boundaryIds.has(payload?.boundaryId)) errors.push(error("boundaryId", "Unknown boundary ID."));
+  if (!Array.isArray(payload?.mappings)) errors.push(error("mappings", "Mappings must be an array."));
+  for (const [index, mapping] of (payload?.mappings || []).entries()) {
+    if (!mapping.sourceValue) errors.push(error(`mappings[${index}].sourceValue`, "Source value is required."));
+    if (!mapping.boundaryValue) errors.push(error(`mappings[${index}].boundaryValue`, "Boundary value is required."));
+    if (typeof mapping.confidence !== "number" || mapping.confidence < 0 || mapping.confidence > 1) errors.push(error(`mappings[${index}].confidence`, "Confidence must be between 0 and 1."));
+  }
+  if (!Array.isArray(payload?.unresolved)) errors.push(error("unresolved", "Unresolved values must be an array."));
+  return { valid: errors.length === 0, errors, warnings: [], repair: payload };
 }
 
 export function validateRepair(payload, knownTables = [], dataset = null) {
@@ -199,6 +234,11 @@ function containsExecutable(value) {
 
 function expectedType(proposal, name) {
   return proposal.expectedColumns.find((column) => column.name === name)?.dataType || "string";
+}
+
+function proposalFields(viz) {
+  if (isMapSpec(viz)) return [viz.encoding?.latitude, viz.encoding?.longitude, viz.encoding?.label, viz.encoding?.size, viz.encoding?.color, viz.encoding?.value, viz.encoding?.region, ...(viz.encoding?.tooltip || [])];
+  return [viz.encoding?.x, ...(viz.encoding?.y || [])];
 }
 
 function error(path, message) {

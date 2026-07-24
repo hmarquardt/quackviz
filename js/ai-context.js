@@ -1,4 +1,7 @@
 import { AI_CONTRACT_VERSION, APP_VERSION, BUILD_DATE } from "./constants.js";
+import { boundaryCatalog } from "./map-boundaries.js";
+import { recommendMaps } from "./map-recommend.js";
+import { inferGeographicSemantic } from "./spatial-profile.js";
 
 const SENSITIVE = /(name|email|phone|address|birth|dob|ssn|social|account|credit|card|medical|patient|ip_address|ip\b|device|identifier|comment|notes?|free_?text)/i;
 
@@ -18,8 +21,9 @@ export function buildAiContext({ workspace, selectedTableNames, result = null, r
       }).map((column) => ({
         name: column.name,
         duckType: column.duckType,
-        semanticType: semanticType(column),
-        semanticConfidence: semanticConfidence(column),
+        semanticType: geographicOrDefault(column).semanticType,
+        semanticConfidence: geographicOrDefault(column).semanticConfidence,
+        semanticReasons: geographicOrDefault(column).semanticReasons,
         nullable: column.nullable,
       })),
     }));
@@ -51,6 +55,8 @@ export function buildAiContext({ workspace, selectedTableNames, result = null, r
       cardCount: dashboard.layout?.length || 0,
       filterCount: dashboard.filters?.length || 0,
     })),
+    boundaryCatalog: boundaryCatalog().map(({ id, label, version, attribution, keyTypes, unavailable }) => ({ id, label, version, attribution, keyTypes, unavailable: Boolean(unavailable) })),
+    deterministicMapRecommendations: (workspace.dataSources || []).flatMap((source) => recommendMaps(source.columns.map((column) => ({ name: column.name, inferredType: geographicOrDefault(column).semanticType === "unknown geography" ? semanticType(column) : geographicOrDefault(column).semanticType })))),
     reports: (workspace.reports || []).map((report) => ({
       id: report.id,
       name: report.name,
@@ -94,4 +100,10 @@ function semanticConfidence(column) {
   const name = String(column.name || "").toLowerCase();
   if (/date|revenue|sales|cost|profit|quantity|category|region|product/.test(name)) return 0.9;
   return 0.55;
+}
+
+function geographicOrDefault(column) {
+  const inferred = inferGeographicSemantic({ name: column.name, type: column.duckType }, []);
+  if (inferred.semanticType !== "unknown geography") return inferred;
+  return { semanticType: semanticType(column), semanticConfidence: semanticConfidence(column), semanticReasons: [] };
 }

@@ -1,4 +1,4 @@
-import { AI_CONTRACT_VERSION, APP_VERSION, OPENROUTER, SUPPORTED_CHART_TYPES, VIZ_SPEC_VERSION } from "./constants.js";
+import { AI_CONTRACT_VERSION, APP_VERSION, OPENROUTER, SUPPORTED_CHART_TYPES, SUPPORTED_MAP_TYPES, VIZ_SPEC_VERSION } from "./constants.js";
 
 export const AI_CONTRACTS = {
   proposals: "quackviz-ai-proposals",
@@ -10,6 +10,8 @@ export const AI_CONTRACTS = {
   reportOutline: "quackviz-ai-report-outline",
   reportNarrative: "quackviz-ai-report-narrative",
   reportCritique: "quackviz-ai-report-critique",
+  mapProposals: "quackviz-ai-map-proposals",
+  regionRepair: "quackviz-ai-region-repair",
 };
 
 export const AI_ACTIONS = [
@@ -26,6 +28,13 @@ export const AI_ACTIONS = [
   { id: "build-report-outline", label: "Build report outline" },
   { id: "draft-report-narrative", label: "Draft report narrative" },
   { id: "critique-report", label: "Critique report" },
+  { id: "suggest-maps", label: "Suggest maps" },
+  { id: "build-map", label: "Build map" },
+  { id: "explain-spatial-pattern", label: "Explain spatial pattern" },
+  { id: "repair-map-sql", label: "Repair map SQL" },
+  { id: "repair-region-matching", label: "Repair region matching" },
+  { id: "critique-map", label: "Critique current map" },
+  { id: "improve-map", label: "Improve current map" },
 ];
 
 export function buildSystemPrompt(extra = "") {
@@ -38,6 +47,8 @@ Only read-only analytical SQL is allowed. SQL must begin with SELECT or WITH.
 Do not use INSERT, UPDATE, DELETE, DROP, ALTER, CREATE, COPY, INSTALL, LOAD, ATTACH, DETACH, CALL, PRAGMA, external URL reads, JavaScript, HTML, ECharts raw options, formatter functions, event handlers, or arbitrary URLs.
 Supported QuackViz visualization spec version: ${VIZ_SPEC_VERSION}.
 Supported chart types: ${SUPPORTED_CHART_TYPES.join(", ")}.
+Supported map types: ${SUPPORTED_MAP_TYPES.join(", ")}.
+Map specs must be constrained QuackViz map specs, not raw MapLibre styles or layers. Do not return remote tile URLs.
 SQL aliases must match expectedColumns and visualization encoding fields.
 Every proposal must include assumptions, cautions, sourceTables, confidence, reasoning, SQL, expectedColumns, and a QuackViz visualization spec when a visualization is requested.
 Prefer 3 to 6 high-value proposals over many shallow proposals.`;
@@ -52,6 +63,9 @@ export function actionContract(action) {
   if (action === "build-report-outline") return AI_CONTRACTS.reportOutline;
   if (action === "draft-report-narrative") return AI_CONTRACTS.reportNarrative;
   if (action === "critique-report") return AI_CONTRACTS.reportCritique;
+  if (["suggest-maps", "build-map"].includes(action)) return AI_CONTRACTS.mapProposals;
+  if (action === "repair-region-matching") return AI_CONTRACTS.regionRepair;
+  if (["explain-spatial-pattern", "repair-map-sql", "critique-map", "improve-map"].includes(action)) return AI_CONTRACTS.mapProposals;
   return AI_CONTRACTS.proposals;
 }
 

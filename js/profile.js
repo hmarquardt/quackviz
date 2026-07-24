@@ -1,7 +1,10 @@
 import { queryRows } from "./db.js";
+import { inferGeographicSemantic } from "./spatial-profile.js";
 import { escapeIdent } from "./utils.js";
 
 function inferSemanticType(column, profile) {
+  const geo = inferGeographicSemantic(column, [profile.min, profile.max, ...(profile.topValues || []).map((item) => item.value)].filter((value) => value != null));
+  if (geo.semanticType !== "unknown geography") return geo.semanticType;
   const name = column.name.toLowerCase();
   const type = column.type.toLowerCase();
   if (/lat(itude)?/.test(name)) return "latitude";
@@ -52,8 +55,10 @@ export async function profileTable(tableName, columns) {
       topValues: top.rows,
     };
     profile.semanticType = inferSemanticType({ name: field, type }, profile);
+    const geo = inferGeographicSemantic({ name: field, type }, [profile.min, profile.max, ...top.rows.map((item) => item.value)].filter((value) => value != null));
+    profile.semanticConfidence = geo.semanticType === "unknown geography" ? null : geo.semanticConfidence;
+    profile.semanticReasons = geo.semanticReasons;
     profiles.push(profile);
   }
   return profiles;
 }
-

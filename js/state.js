@@ -48,6 +48,12 @@ export const state = {
     lastPrintAt: null,
     lastError: null,
   },
+  map: {
+    lastDiagnostics: null,
+    lastCoordinateProfile: null,
+    lastExportAt: null,
+    lastError: null,
+  },
   ai: {
     apiKeyConfigured: false,
     modelList: [],

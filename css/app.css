@@ -137,6 +137,15 @@ label {
   gap: 7px;
   align-items: center;
 }
+.map-builder-controls[hidden] { display: none; }
+.map-builder-controls {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel-2);
+}
 
 input[type="checkbox"] { width: auto; min-height: auto; }
 .compact-file input { display: none; }
@@ -247,6 +256,9 @@ th {
   border: 1px solid var(--border);
   border-radius: 8px;
   background: var(--panel);
+}
+.maplibregl-map {
+  min-height: 100%;
 }
 
 .empty-state {

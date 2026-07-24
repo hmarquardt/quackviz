@@ -1,9 +1,12 @@
-import { AI_CONTRACT_VERSION, APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL, DEPENDENCIES, VIZ_SPEC_VERSION, WORKSPACE_SCHEMA_VERSION } from "./constants.js";
+import { AI_CONTRACT_VERSION, APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL, DEPENDENCIES, MAP_SPEC_VERSION, VIZ_SPEC_VERSION, WORKSPACE_SCHEMA_VERSION } from "./constants.js";
 import { AI_ACTIONS } from "./ai-contracts.js";
 import { getDatabaseStatus } from "./db.js";
 import { getDashboardRunnerStatus } from "./dashboard-runner.js";
 import { getReportRunnerStatus } from "./report-runner.js";
 import { REPORT_SECTION_TYPES } from "./report.js";
+import { boundaryCatalog, getBoundaryStatus } from "./map-boundaries.js";
+import { getMapRendererStatus } from "./map-renderer.js";
+import { isMapSpec } from "./map-spec.js";
 import { getRendererStatus } from "./viz-renderer.js";
 import { chartTypes, defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
 import { html, safeString, truncate } from "./utils.js";
@@ -39,6 +42,19 @@ export function elements() {
     chartType: $("chartType"),
     xField: $("xField"),
     yField: $("yField"),
+    mapBuilderControls: $("mapBuilderControls"),
+    mapLatitudeField: $("mapLatitudeField"),
+    mapLongitudeField: $("mapLongitudeField"),
+    mapRegionField: $("mapRegionField"),
+    mapValueField: $("mapValueField"),
+    mapLabelField: $("mapLabelField"),
+    mapColorField: $("mapColorField"),
+    mapSizeField: $("mapSizeField"),
+    mapBoundary: $("mapBoundary"),
+    mapBasemap: $("mapBasemap"),
+    mapCluster: $("mapCluster"),
+    mapLegend: $("mapLegend"),
+    exportMapPackage: $("exportMapPackage"),
     vizTitle: $("vizTitle"),
     smoothLine: $("smoothLine"),
     showPoints: $("showPoints"),
@@ -123,7 +139,8 @@ export function elements() {
 }
 
 export function initializeStaticControls() {
-  elements().chartType.innerHTML = chartTypes().map((type) => `<option value="${type}">${type === "bar" ? "Vertical bar" : "Line"}</option>`).join("");
+  elements().chartType.innerHTML = chartTypes().map((type) => `<option value="${type}">${html(labelType(type))}</option>`).join("");
+  elements().mapBoundary.innerHTML = boundaryCatalog().map((boundary) => `<option value="${html(boundary.id)}">${html(boundary.label)}${boundary.unavailable ? " (not vendored)" : ""}</option>`).join("");
   elements().aiAction.innerHTML = AI_ACTIONS.map((action) => `<option value="${action.id}">${html(action.label)}</option>`).join("");
   elements().reportSectionType.innerHTML = REPORT_SECTION_TYPES.map((type) => `<option value="${type}">${html(type)}</option>`).join("");
   elements().footerVersion.textContent = `v${APP_VERSION} (${BUILD_DATE})`;
@@ -246,16 +263,30 @@ function renderBuilder(state) {
   const result = state.currentResult && !state.currentResult.error ? state.currentResult : null;
   const columns = result?.columns || [];
   const options = columns.map((column) => `<option value="${html(column.name)}">${html(column.name)} · ${html(column.inferredType)}</option>`).join("");
+  const optionalOptions = `<option value=""></option>${options}`;
   el.xField.innerHTML = options;
   el.yField.innerHTML = options;
+  for (const select of [el.mapLatitudeField, el.mapLongitudeField, el.mapRegionField, el.mapValueField, el.mapLabelField, el.mapColorField, el.mapSizeField]) select.innerHTML = optionalOptions;
   if (!columns.length) {
     el.saveViz.disabled = true;
     return;
   }
   const spec = state.currentSpec || defaultVisualizationSpec({ queryId: state.workspace.active.queryId, columns });
   el.chartType.value = spec.type;
+  el.mapBuilderControls.hidden = !isMapSpec(spec);
   el.xField.value = spec.encoding.x?.field || columns[0]?.name || "";
   el.yField.value = spec.encoding.y?.[0]?.field || columns.find((column) => column.inferredType === "number")?.name || "";
+  el.mapLatitudeField.value = spec.encoding.latitude?.field || "";
+  el.mapLongitudeField.value = spec.encoding.longitude?.field || "";
+  el.mapRegionField.value = spec.encoding.region?.field || "";
+  el.mapValueField.value = spec.encoding.value?.field || "";
+  el.mapLabelField.value = spec.encoding.label?.field || "";
+  el.mapColorField.value = spec.encoding.color?.field || "";
+  el.mapSizeField.value = spec.encoding.size?.field || "";
+  el.mapBoundary.value = spec.encoding.region?.boundary || "us-states";
+  el.mapBasemap.value = spec.map?.style || "blank";
+  el.mapCluster.checked = Boolean(spec.map?.cluster || spec.type === "map-clustered-point");
+  el.mapLegend.checked = spec.map?.showLegend !== false;
   el.vizTitle.value = spec.title || "";
   el.smoothLine.checked = Boolean(spec.options?.smooth);
   el.showPoints.checked = Boolean(spec.options?.showPoints);
@@ -281,6 +312,8 @@ function renderSpec(spec, result) {
 function renderDebug(state) {
   const db = getDatabaseStatus();
   const renderer = getRendererStatus();
+  const mapRenderer = getMapRendererStatus();
+  const boundaryStatus = getBoundaryStatus();
   const dashboardRunner = getDashboardRunnerStatus();
   const reportRunner = getReportRunnerStatus();
   const activeDashboard = state.workspace.dashboards.find((dashboard) => dashboard.id === state.workspace.active.dashboardId);
@@ -295,14 +328,19 @@ function renderDebug(state) {
       duckdbWasmUrl: DEPENDENCIES.duckdbWasm.url,
       echartsPackageVersion: DEPENDENCIES.echarts.version,
       echartsUrl: DEPENDENCIES.echarts.url,
+      maplibrePackageVersion: DEPENDENCIES.maplibre.version,
+      maplibreUrl: DEPENDENCIES.maplibre.url,
+      maplibreCssUrl: DEPENDENCIES.maplibre.cssUrl,
     },
     runtime: {
       duckdbVersion: db.runtimeVersion,
       selectedDuckdbBundle: db.selectedBundle,
       connection: db.connection,
       echartsVersion: renderer.echartsRuntimeVersion,
+      maplibreVersion: mapRenderer.maplibreRuntimeVersion,
       indexedDb: state.storageStatus.indexedDb,
       echartsInstanceCount: renderer.instanceCount,
+      mapInstanceCount: mapRenderer.instanceCount,
     },
     workspace: {
       id: state.workspace.id,
@@ -344,6 +382,27 @@ function renderDebug(state) {
       footerVersion: elements().footerVersion.textContent,
       buildDate: BUILD_DATE,
     },
+    maps: {
+      mapSpecVersion: MAP_SPEC_VERSION,
+      activeMapVisualizationId: isMapSpec(state.currentSpec) ? state.workspace.active.visualizationId : null,
+      currentBasemap: isMapSpec(state.currentSpec) ? state.currentSpec.map?.style || "blank" : null,
+      boundaryCatalogCount: boundaryStatus.catalogCount,
+      loadedBoundaryCount: boundaryStatus.loadedBoundaryCount,
+      lastBoundaryId: boundaryStatus.boundaryId,
+      lastBoundaryLoadDuration: boundaryStatus.durationMs,
+      lastCoordinateProfile: state.map.lastCoordinateProfile,
+      validPointCount: state.map.lastDiagnostics?.validFeatureCount ?? null,
+      invalidPointCount: state.map.lastDiagnostics?.invalidCoordinateCount ?? null,
+      regionMatchRate: state.map.lastDiagnostics?.regionMatch?.matchRate ?? null,
+      unmatchedRegionCount: state.map.lastDiagnostics?.regionMatch?.unmatchedDataRegions ?? null,
+      lastMapRenderDuration: mapRenderer.lastRenderDuration,
+      lastMapExportTime: mapRenderer.lastExportAt || state.map.lastExportAt,
+      lastAiMapAction: state.ai.lastDiagnostics?.action?.includes("map") ? state.ai.lastDiagnostics.action : null,
+      lastAiMapProposalCount: state.ai.lastDiagnostics?.mapProposalCount || 0,
+      lastMapError: state.map.lastError || mapRenderer.error,
+      footerVersion: elements().footerVersion.textContent,
+      buildDate: BUILD_DATE,
+    },
     lastQueryRuntime: state.currentResult?.runtimeMs ?? null,
     lastError: state.errors[0] || null,
     ai: {
@@ -366,6 +425,19 @@ function renderDebug(state) {
     },
   };
   elements().debugReport.textContent = JSON.stringify(report, null, 2);
+}
+
+function labelType(type) {
+  return {
+    line: "Line",
+    bar: "Vertical bar",
+    "map-point": "Point map",
+    "map-clustered-point": "Clustered point map",
+    "map-proportional-symbol": "Proportional symbol map",
+    "map-category-point": "Category-colored point map",
+    "map-choropleth": "Choropleth map",
+    "map-region-symbol": "Region-symbol map",
+  }[type] || type;
 }
 
 function renderReport(state) {

@@ -1,9 +1,12 @@
 import { ORIENTATIONS, SUPPORTED_CHART_TYPES, TOOLTIP_MODES, VIZ_SPEC_VERSION } from "./constants.js";
+import { defaultMapSpec, isMapSpec, normalizeMapSpec } from "./map-spec.js";
+import { validateMapSpecSync } from "./map-validate.js";
 import { deepClone } from "./utils.js";
 
 const TOP_LEVEL = new Set(["version", "type", "title", "subtitle", "dataset", "encoding", "options"]);
 
 export function defaultVisualizationSpec({ queryId = null, columns = [], type = "line" } = {}) {
+  if (String(type).startsWith("map-")) return defaultMapSpec({ queryId, columns, type });
   const x = columns.find((column) => column.inferredType === "date") || columns.find((column) => column.inferredType !== "number") || columns[0];
   const y = columns.find((column) => column.inferredType === "number" && column.name !== x?.name) || columns.find((column) => column.inferredType === "number");
   return normalizeVisualizationSpec({
@@ -24,6 +27,7 @@ export function defaultVisualizationSpec({ queryId = null, columns = [], type = 
 }
 
 export function normalizeVisualizationSpec(input) {
+  if (isMapSpec(input)) return normalizeMapSpec(input);
   const spec = deepClone(input || {});
   return {
     version: spec.version ?? VIZ_SPEC_VERSION,
@@ -62,6 +66,7 @@ function normalizeField(field) {
 }
 
 export function validateVisualizationSpec(input, dataset = { columns: [] }) {
+  if (isMapSpec(input)) return validateMapSpecSync(input, dataset);
   const errors = [];
   if (containsExecutable(input)) errors.push({ path: "$", message: "Specification must not contain functions or executable strings." });
   for (const key of Object.keys(input || {})) {

@@ -56,9 +56,10 @@ export async function runAiAction({ apiKey, action, question, workspace, selecte
       contractValidationSuccess: validation.valid,
       contractVersion: parsed.value.contractVersion,
       proposalCount: validation.proposals?.length || 0,
+      mapProposalCount: expectedContract === "quackviz-ai-map-proposals" ? validation.proposals?.length || 0 : 0,
     },
   };
-  if (expectedContract === "quackviz-ai-proposals") result.proposalState = createProposalState(validation);
+  if (expectedContract === "quackviz-ai-proposals" || expectedContract === "quackviz-ai-map-proposals") result.proposalState = createProposalState(validation);
   return result;
 }
 

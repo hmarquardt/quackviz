@@ -1,23 +1,24 @@
 # QuackViz
 
-QuackViz is a static, browser-local DuckDB-WASM and Apache ECharts analytical workspace. Current application version: `0.5.0`, build date `2026-07-23`.
+QuackViz is a static, browser-local DuckDB-WASM, Apache ECharts, and MapLibre GL JS analytical workspace. Current application version: `0.6.0`, build date `2026-07-24`.
 
-## Current Milestone: Reports
+## Current Milestone: Maps
 
-QuackViz now supports section-based report authoring on top of the existing import, profiling, SQL, visualization, AI, dashboard, filter, persistence, diagnostics, and export foundation.
+QuackViz now includes a constrained geospatial visualization path for point data, regional values, spatial profiling, map-backed saved visualizations, and structured AI map proposals.
 
-The report workflow is:
+The map workflow is:
 
 ```text
-queries and visualizations
--> dashboards and findings
--> report sections
--> narrative editing
--> validated export
--> portable analytical artifact
+import and profile data
+-> detect geographic fields
+-> generate spatial SQL where needed
+-> validate coordinates or region joins
+-> compile QuackViz map spec
+-> render map
+-> save, dashboard, report, or export
 ```
 
-Maps, geographic layers, native PDF generation, PowerPoint generation, server-side publishing, and multi-user collaboration are not implemented.
+Streaming, collaboration, cross-filtering, remote database connectivity, routing, geocoding services, 3D globes, and native GIS editing are not implemented.
 
 ## Run Locally
 
@@ -27,7 +28,7 @@ No npm install and no build step are required:
 python3 -m http.server 8080
 ```
 
-Open `http://localhost:8080/`. Use a static server instead of `file://` because browser module and worker restrictions can block DuckDB-WASM and ES modules.
+Open `http://localhost:8080/`. Use a static server instead of `file://` because browser module, WebGL, and DuckDB-WASM restrictions can block runtime loading.
 
 ## Run Tests
 
@@ -45,221 +46,254 @@ The DOM-free module tests can also be run under Node. Automated tests use mocked
   - `https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.esm.min.js`
 - DuckDB-WASM `1.33.1-dev57.0`
   - `https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm`
+- MapLibre GL JS `5.24.0`
+  - `https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/+esm`
+  - `https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css`
 
-Pinned versions are centralized in `js/constants.js`, shown in Debug, reflected in the persistent footer, and included in workspace, dashboard, AI, and report export metadata.
+Pinned versions are centralized in `js/constants.js`, shown in Debug, reflected in the persistent footer, and included in workspace, dashboard, report, AI, and map export metadata.
 
-## Report Data Model
+## Supported Map Types
 
-Reports are stored in `workspace.reports` and selected through `workspace.active.reportId`. Existing workspaces are migrated with an empty reports collection.
+The constrained map spec supports:
 
-Each report includes:
+- Point map
+- Clustered point map
+- Proportional-symbol map
+- Category-colored point map
+- Choropleth map
+- Region-symbol overlay, reserved in the spec and validated as a supported map type
 
-- `id`, `version`, `name`, `title`, `subtitle`, `description`, timestamps, and creator metadata
-- `settings` for theme inheritance, page size, orientation, SQL/provenance display, table row-count display, and static-versus-interactive HTML export preference
-- `sections`, each with a stable section ID, source references, editable narrative content, snapshot metadata, and provenance
-- `metadata` containing the canonical app version and build date
+Unsupported future map types such as heatmap, hexbin, flow, route, polygon, line, raster, and terrain are not exposed as working controls.
 
-Deleting a report does not delete the underlying queries, visualizations, dashboards, or data sources.
+## MapLibre and Basemaps
 
-## Supported Section Types
+MapLibre GL JS is lazy-loaded only when a map renders. The default style is a blank local background, so imported data can render without a remote basemap.
 
-The report model supports:
+Imported user data remains local. Remote basemap providers receive tile requests, not the imported dataset.
 
-- Cover
-- Heading
-- Text
-- Finding
-- KPI
-- Visualization
-- Dashboard snapshot
-- Query table
-- SQL
-- Divider
-- Appendix
-- Methodology
-- Data-source summary
+The current built-in styles are:
 
-Sections can be added, duplicated, removed, hidden, moved up/down, moved to the top/bottom, edited, and refreshed when dynamic.
+- Blank local background
+- Default light background
+- Default dark background
 
-## Refresh and Staleness
+The architecture keeps style URLs centralized and allows future vendoring under:
 
-Dynamic sections resolve saved sources and refresh independently:
+```text
+vendor/
+  maplibre/
+  boundaries/
+```
 
-- Visualization sections resolve a saved visualization and its saved query.
-- Dashboard snapshot sections resolve the referenced dashboard and refresh its cards through the dashboard runner.
-- Query-table sections execute a saved query with a conservative row limit.
-- KPI sections execute a saved query and warn when it returns more than one row.
-- Data-source summary sections generate local metadata without raw source rows.
+No Mapbox-hosted APIs or Mapbox access token are required.
 
-One failed section does not block the rest of the report. Report refresh uses a bounded concurrency limit and records status in Debug.
+## Geographic Semantic Detection
 
-QuackViz report exports contain snapshots unless explicitly refreshed.
+Spatial profiling detects:
 
-Sections preserve live source references and snapshot metadata. A section is marked stale when the referenced query, visualization, or dashboard changes after the snapshot.
+- Latitude
+- Longitude
+- Country names and ISO alpha-2/alpha-3 codes
+- US state names, abbreviations, and FIPS codes
+- US county FIPS-like values
+- ZIP/postal codes
+- City and region fields
+- GeoJSON/WKT-like geometry fields
 
-## Narrative Editing
+Generic `x` and `y` are not classified as coordinates by name alone. Coordinate detection requires supporting value ranges and more specific field names.
 
-Report narrative is stored as editable text. The current renderer supports safe Markdown-lite paragraphs and code-friendly text containers; arbitrary HTML is not accepted as a report section format.
+Detected columns may store:
 
-AI-generated narrative remains editable and is treated as untrusted text.
+```js
+{
+  semanticType: "latitude",
+  semanticConfidence: 0.98,
+  semanticReasons: ["Column name indicates latitude.", "Values are within -90 to 90."]
+}
+```
 
-## AI Reports
+## Spatial Profiling
+
+Coordinate profiles compute:
+
+- Valid, invalid, null, and rejected coordinate-pair counts
+- Bounding boxes
+- Duplicate coordinate counts
+- Zero/zero points
+- Suspected swapped coordinates
+
+Region profiles compute distinct values and feed exact-match diagnostics against available boundaries.
+
+## Coordinate Validation
+
+Coordinate normalization accepts numeric values and unambiguous numeric strings. It rejects nulls, empty strings, `NaN`, infinities, arrays, objects, latitudes outside `-90..90`, and longitudes outside `-180..180`.
+
+Invalid rows are reported, not silently clamped. Suspected latitude/longitude reversal is warned about; QuackViz does not automatically swap coordinates.
+
+## Boundary Catalog
+
+The built-in boundary catalog includes:
+
+- `us-states`
+  - Attribution: US Census Bureau, simplified
+  - Supported keys: US state name, abbreviation, FIPS
+  - Current geometry: simplified local boxes suitable for validation and map workflow tests, not detailed cartography
+- `world-countries`
+  - Attribution: Natural Earth, simplified
+  - Supported keys: country name, ISO alpha-2, ISO alpha-3
+  - Current geometry: simplified local boxes for a small starter set
+- `us-counties`
+  - Cataloged but not vendored in this milestone
+
+Detailed boundary files can be vendored later without changing the saved map spec format.
+
+## Region Matching
+
+Region matching is exact after normalization. Supported strategies include:
+
+- US state abbreviation
+- US state name
+- US state FIPS
+- Country ISO alpha-2
+- Country ISO alpha-3
+- Exact normalized country/name matching
+- Explicit approved mappings
+
+QuackViz does not silently fuzzy-match region names.
+
+Unmatched values and low match rates are shown as warnings. AI region-repair proposals must be approved before mappings are used.
+
+## Choropleth Classification
+
+The current compiler supports continuous choropleth coloring with theme-aware colors and raw values in tooltip metadata. Equal interval, quantile, and manual breaks are reserved in the map spec but not fully exposed in the UI yet.
+
+## Deterministic Map Recommendations
+
+Local recommendations are generated for:
+
+- Latitude + longitude -> point map
+- Latitude + longitude + many rows -> clustered point map
+- Latitude + longitude + numeric field -> proportional-symbol map
+- Latitude + longitude + category field -> category-colored point map
+- Region + numeric field -> choropleth map
+
+Recommendations explain why a map adds value and avoid map suggestions when geographic confidence is weak.
+
+## AI Map Proposals
 
 The AI action catalog includes:
 
-- Build report outline
-- Draft report narrative
-- Critique report
+- Suggest maps
+- Build map
+- Explain spatial pattern
+- Repair map SQL
+- Repair region matching
+- Critique current map
+- Improve current map
 
 Added contracts:
 
-- `quackviz-ai-report-outline`
-- `quackviz-ai-report-narrative`
-- `quackviz-ai-report-critique`
+- `quackviz-ai-map-proposals`
+- `quackviz-ai-region-repair`
 
-AI report output is validated for contract version, section types, existing source IDs, section count, narrative length, executable content, and unsupported fields. AI narrative validation warns about causal or statistical-significance claims that require supporting evidence.
+AI map proposals are validated for contract version, read-only SQL, supported map type, expected-column alignment, known source tables, known boundary IDs, and no executable content. Raw MapLibre styles, JavaScript, HTML, event handlers, and AI-provided remote tile URLs are rejected.
 
-AI changes require user review. QuackViz does not automatically create, save, or execute report content from AI output.
+AI-generated map SQL uses the existing SQL safety pipeline. AI proposals require approval and never execute automatically.
 
-## Claim Discipline
+## Map Builder
 
-AI report prompts and validators are designed around these rules:
+The existing visualization builder now exposes contextual map controls for map types:
 
-- Use only provided results and metadata.
-- Avoid causal claims unless supported.
-- Avoid statistical-significance claims unless a test result is provided.
-- Distinguish observation from inference.
-- Mention truncation, missing data, and incomplete periods where relevant.
-- Avoid inventing business context.
+- Latitude and longitude fields
+- Region and value fields
+- Label, color, and size fields
+- Boundary
+- Basemap
+- Clustering
+- Legend
+- Export map package
 
-## HTML Export
+Generated SQL remains visible and editable in the SQL workspace.
 
-HTML report export creates a self-contained static document with:
+## Dashboard and Report Integration
 
-- Embedded CSS
-- Report title, subtitle, sections, tables, captions, and metadata
-- Embedded snapshot images when available
-- Canonical app version and build date
-- Print-friendly styles
+Maps are saved as normal visualization objects with `map-*` specs. Dashboard cards resolve saved map visualizations through the existing dashboard runner, then render them through the MapLibre map manager. ECharts and MapLibre cards can coexist.
 
-HTML exports omit API keys, active AI settings, raw source tables, external scripts, and the editable QuackViz application UI. Interactive ECharts export remains disabled; static snapshots are the default.
+Report visualization sections can reference saved maps. Report exports keep source references and snapshots. Current report map snapshots use the report snapshot path; detailed live map image capture is still limited by browser/WebGL/CORS behavior.
 
-## Markdown Export
+## Map Image Export
 
-Markdown export includes:
+MapLibre instances are created with `preserveDrawingBuffer` so PNG export can work where the browser and source configuration permit it.
 
-- Report title and subtitle
-- Generation metadata and QuackViz version
-- Section headings and narrative
-- Tables
-- SQL source placeholders when SQL visibility is enabled
-- Image data URIs when section snapshots contain images
+Map image export may be limited by third-party tile-server CORS policies.
 
-Markdown is portable text; image handling depends on whether the section has an embedded snapshot image.
+When export fails, QuackViz surfaces the error instead of silently producing a blank image. Data-layer-only export is a future improvement.
 
-## Report Package Export
+## Portable Map Packages
 
-The package export currently produces a portable JSON object containing the files that would form a report package:
-
-```text
-report/index.html
-report/report.md
-report/manifest.json
-```
-
-The manifest uses:
+Map visualization package export uses:
 
 ```json
 {
-  "format": "quackviz-report-package",
-  "formatVersion": 1,
-  "generatedBy": {
-    "app": "QuackViz",
-    "appVersion": "0.5.0",
-    "buildDate": "2026-07-23"
-  }
-}
-```
-
-No ZIP dependency is added in this milestone, so the UI downloads the package-file manifest as JSON rather than a binary `.zip`. Raw source data is excluded by default.
-
-## Print and PDF Workflow
-
-The Report workspace includes `Print / Save as PDF`, which invokes the browser print dialog.
-
-“Save as PDF” uses the browser print system; QuackViz does not generate native PDF files in this milestone.
-
-The print stylesheet hides application controls, keeps sections readable, repeats table headers where browsers support it, and defaults to print-friendly output.
-
-## Report Import and Export
-
-Report JSON export uses:
-
-```json
-{
-  "format": "quackviz-report",
+  "format": "quackviz-visualization",
   "formatVersion": 1,
   "exportedBy": {
     "app": "QuackViz",
-    "appVersion": "0.5.0",
-    "buildDate": "2026-07-23",
-    "exportedAt": "..."
+    "appVersion": "0.6.0",
+    "buildDate": "2026-07-24"
   },
-  "report": {},
-  "referencedVisualizations": [],
-  "referencedQueries": [],
-  "referencedDashboards": []
+  "query": {},
+  "visualization": {},
+  "boundaries": [],
+  "approvedMappings": []
 }
 ```
 
-Imports validate future versions, normalize reports, remap colliding report IDs, preserve section source references, and exclude API keys. Referenced query, visualization, and dashboard definitions are included in export metadata but are not fully merged on import yet.
+Large boundary files are not embedded by default.
 
-## Broken Sources
+## DuckDB Spatial Extension
 
-Broken or unavailable report sections remain visible. A section can become broken when a query, visualization, dashboard, source table, SQL query, chart spec, or snapshot is missing or invalid. The report preview shows the section state and keeps any previous snapshot unless refreshed.
-
-## Dashboards and Filters
-
-The dashboard milestone remains functional. Dashboards support saved visualization cards, CSS-grid layout, bounded coordinated refresh, in-memory result caching, shared filters, local filters, dashboard package export/import, snapshot HTML export, AI dashboard proposals, and AI dashboard critique.
-
-Dashboard filters are applied only when a compatible field binding exists.
-
-QuackViz does not silently rewrite arbitrary SQL to force dashboard filters.
+DuckDB’s spatial extension is not required for this milestone. Latitude/longitude maps and region joins work without it. WKT/GeoJSON detection is present, but full geometry rendering and spatial predicates are reserved for a later milestone unless DuckDB-WASM spatial loading proves reliable in static-browser tests.
 
 ## Privacy and AI Safety
 
-OpenRouter API keys remain localStorage-only and are excluded from workspace export, dashboard export, report export, snapshots, Debug, and AI history. AI output is treated as untrusted input. AI-generated SQL still passes through the existing SQL safety pipeline before preview or use.
+OpenRouter API keys remain localStorage-only and are excluded from workspace export, dashboard export, report export, map export, snapshots, Debug, and AI history. AI output is treated as untrusted input.
 
 QuackViz does not silently execute AI-generated SQL.
 
 ## Footer and Versioning
 
-The persistent footer shows the canonical app version and build date. Debug, workspace metadata, dashboard exports, dashboard snapshots, report metadata, HTML export, Markdown export, report package manifests, and AI diagnostics use the same constants.
-
-The Report workspace includes a `Copy report metadata` action. The Dashboard toolbar retains `Copy deployment info`.
+The persistent footer shows the canonical app version and build date. Debug, workspace metadata, dashboard exports, report exports, map exports, and AI diagnostics use the same constants.
 
 ## Accessibility and Performance
 
-Report outline controls are keyboard-accessible buttons. Sections expose headings, table captions, image alt text, status text, and non-color-only state labels. Reduced-motion settings continue to flow through chart rendering paths.
+Map views include nonvisual diagnostics: feature count, rejected rows, coordinate/profile summaries, region-match diagnostics, legend metadata, tooltip field lists, and attribution. The visual map is not claimed to be fully equivalent for screen readers.
 
-The report workspace is designed for dozens of sections without refreshing queries on every narrative edit. Dynamic refresh is explicit and bounded.
+Default limits:
+
+- Raw point map warning above 10,000 points
+- Clustered point map warning above 100,000 points
+- Tooltip fields limited to 10
+- Category legend warning above 12 categories
 
 ## Current Limitations
 
-- Chart image capture for report visualization sections currently uses a static placeholder snapshot unless a section already has an image data URL.
-- Report package export is a JSON package-file representation, not a binary ZIP.
-- Report JSON import does not fully merge referenced queries, visualizations, or dashboards into the workspace yet.
-- Markdown export includes SQL source placeholders rather than full SQL text unless the section snapshot/source has been enriched.
-- Native PDF generation is not implemented; use browser print.
-- AI report actions are validated, but automatic report creation from AI outline proposals is not wired as a one-click flow yet.
-- Browser self-test requires a static server and CDN access for DuckDB/ECharts runtime paths.
+- Built-in boundaries are simplified local geometries for validation/workflow, not detailed cartographic boundary files.
+- US counties are cataloged but not vendored.
+- TopoJSON conversion is not needed yet because built-in boundaries are GeoJSON.
+- Equal interval, quantile, and manual choropleth breaks are reserved but not fully implemented.
+- Map image export depends on browser/WebGL/CORS behavior.
+- Report map snapshots still use the report snapshot mechanism and may not capture live MapLibre tiles.
+- No geocoding service is included.
+- No routing, streaming, collaboration, or remote database connectivity is included.
+- Browser self-test requires a static server and CDN access for DuckDB/ECharts/MapLibre runtime paths.
 
 ## Next Milestone
 
 Recommended focus:
 
-1. Add real chart-image capture from ECharts instances into report snapshots.
-2. Add a pinned ZIP dependency or native multi-file download flow for binary report packages.
-3. Fully merge referenced queries, visualizations, and dashboards during report import.
-4. Add richer Markdown-lite editing controls and source-inspection UI.
-5. Wire approved AI report outlines into an unsaved editable report draft.
+1. Vendor detailed boundary GeoJSON/TopoJSON files under `vendor/boundaries/`.
+2. Add a true boundary mapping editor for approved region mappings.
+3. Add real map image capture into report snapshots.
+4. Add choropleth classification controls for equal interval, quantile, and manual breaks.
+5. Add optional DuckDB-WASM spatial extension smoke tests for WKT and spatial predicates.

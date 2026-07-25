@@ -1,6 +1,7 @@
 {
   "scripts": {
     "release:check": "node scripts/release-static-check.mjs && playwright test --forbid-only --fail-on-flaky-tests",
+    "rc:check": "npm audit --audit-level=moderate && node scripts/rc-static-check.mjs && npm run release:check",
     "test:e2e:axe": "playwright test e2e/accessibility",
     "test:e2e": "playwright test",
     "test:e2e:chromium": "playwright test --project=chromium",
@@ -15,7 +16,7 @@
     "@axe-core/playwright": "^4.12.1",
     "@duckdb/duckdb-wasm": "^1.33.1-dev57.0",
     "@playwright/test": "^1.61.1",
-    "echarts": "^6.0.0",
+    "echarts": "^6.1.0",
     "esbuild": "^0.25.8",
     "jszip": "^3.10.1",
     "maplibre-gl": "^5.24.0",

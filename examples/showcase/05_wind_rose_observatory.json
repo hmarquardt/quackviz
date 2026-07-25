@@ -1,0 +1,1282 @@
+[
+  {
+    "direction": "N",
+    "direction_degrees": 0.0,
+    "cardinal_group": "North",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.5,
+    "observation_share": 0.5097,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "NNE",
+    "direction_degrees": 22.5,
+    "cardinal_group": "North",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.6,
+    "observation_share": 0.6116,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "NE",
+    "direction_degrees": 45.0,
+    "cardinal_group": "Diagonal",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.5,
+    "observation_share": 0.5097,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "ENE",
+    "direction_degrees": 67.5,
+    "cardinal_group": "East",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "E",
+    "direction_degrees": 90.0,
+    "cardinal_group": "East",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "ESE",
+    "direction_degrees": 112.5,
+    "cardinal_group": "East",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.3,
+    "observation_share": 0.3058,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "SE",
+    "direction_degrees": 135.0,
+    "cardinal_group": "Diagonal",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "SSE",
+    "direction_degrees": 157.5,
+    "cardinal_group": "South",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "S",
+    "direction_degrees": 180.0,
+    "cardinal_group": "South",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.6,
+    "observation_share": 0.6116,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "SSW",
+    "direction_degrees": 202.5,
+    "cardinal_group": "South",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "SW",
+    "direction_degrees": 225.0,
+    "cardinal_group": "Diagonal",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.5,
+    "observation_share": 0.5097,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "WSW",
+    "direction_degrees": 247.5,
+    "cardinal_group": "West",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.6,
+    "observation_share": 0.6116,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "W",
+    "direction_degrees": 270.0,
+    "cardinal_group": "West",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.6,
+    "observation_share": 0.6116,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "WNW",
+    "direction_degrees": 292.5,
+    "cardinal_group": "West",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.5,
+    "observation_share": 0.5097,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "NW",
+    "direction_degrees": 315.0,
+    "cardinal_group": "Diagonal",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "NNW",
+    "direction_degrees": 337.5,
+    "cardinal_group": "North",
+    "strength": "0-1",
+    "strength_order": 0,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.0
+  },
+  {
+    "direction": "N",
+    "direction_degrees": 0.0,
+    "cardinal_group": "North",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 1.6,
+    "observation_share": 1.631,
+    "heat_index": 1.6
+  },
+  {
+    "direction": "NNE",
+    "direction_degrees": 22.5,
+    "cardinal_group": "North",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 1.8,
+    "observation_share": 1.8349,
+    "heat_index": 1.8
+  },
+  {
+    "direction": "NE",
+    "direction_degrees": 45.0,
+    "cardinal_group": "Diagonal",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 1.5,
+    "observation_share": 1.5291,
+    "heat_index": 1.5
+  },
+  {
+    "direction": "ENE",
+    "direction_degrees": 67.5,
+    "cardinal_group": "East",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 1.6,
+    "observation_share": 1.631,
+    "heat_index": 1.6
+  },
+  {
+    "direction": "E",
+    "direction_degrees": 90.0,
+    "cardinal_group": "East",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 1.6,
+    "observation_share": 1.631,
+    "heat_index": 1.6
+  },
+  {
+    "direction": "ESE",
+    "direction_degrees": 112.5,
+    "cardinal_group": "East",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 1.2,
+    "observation_share": 1.2232,
+    "heat_index": 1.2
+  },
+  {
+    "direction": "SE",
+    "direction_degrees": 135.0,
+    "cardinal_group": "Diagonal",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 1.5,
+    "observation_share": 1.5291,
+    "heat_index": 1.5
+  },
+  {
+    "direction": "SSE",
+    "direction_degrees": 157.5,
+    "cardinal_group": "South",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 1.7,
+    "observation_share": 1.7329,
+    "heat_index": 1.7
+  },
+  {
+    "direction": "S",
+    "direction_degrees": 180.0,
+    "cardinal_group": "South",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 2.2,
+    "observation_share": 2.2426,
+    "heat_index": 2.2
+  },
+  {
+    "direction": "SSW",
+    "direction_degrees": 202.5,
+    "cardinal_group": "South",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 2.0,
+    "observation_share": 2.0387,
+    "heat_index": 2.0
+  },
+  {
+    "direction": "SW",
+    "direction_degrees": 225.0,
+    "cardinal_group": "Diagonal",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 2.3,
+    "observation_share": 2.3445,
+    "heat_index": 2.3
+  },
+  {
+    "direction": "WSW",
+    "direction_degrees": 247.5,
+    "cardinal_group": "West",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 2.4,
+    "observation_share": 2.4465,
+    "heat_index": 2.4
+  },
+  {
+    "direction": "W",
+    "direction_degrees": 270.0,
+    "cardinal_group": "West",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 2.3,
+    "observation_share": 2.3445,
+    "heat_index": 2.3
+  },
+  {
+    "direction": "WNW",
+    "direction_degrees": 292.5,
+    "cardinal_group": "West",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 2.6,
+    "observation_share": 2.6504,
+    "heat_index": 2.6
+  },
+  {
+    "direction": "NW",
+    "direction_degrees": 315.0,
+    "cardinal_group": "Diagonal",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 2.3,
+    "observation_share": 2.3445,
+    "heat_index": 2.3
+  },
+  {
+    "direction": "NNW",
+    "direction_degrees": 337.5,
+    "cardinal_group": "North",
+    "strength": "1-2",
+    "strength_order": 1,
+    "frequency_pct": 0.8,
+    "observation_share": 0.8155,
+    "heat_index": 0.8
+  },
+  {
+    "direction": "N",
+    "direction_degrees": 0.0,
+    "cardinal_group": "North",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 0.9,
+    "observation_share": 0.9174,
+    "heat_index": 1.8
+  },
+  {
+    "direction": "NNE",
+    "direction_degrees": 22.5,
+    "cardinal_group": "North",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 1.3,
+    "observation_share": 1.3252,
+    "heat_index": 2.6
+  },
+  {
+    "direction": "NE",
+    "direction_degrees": 45.0,
+    "cardinal_group": "Diagonal",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 1.6,
+    "observation_share": 1.631,
+    "heat_index": 3.2
+  },
+  {
+    "direction": "ENE",
+    "direction_degrees": 67.5,
+    "cardinal_group": "East",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 0.9,
+    "observation_share": 0.9174,
+    "heat_index": 1.8
+  },
+  {
+    "direction": "E",
+    "direction_degrees": 90.0,
+    "cardinal_group": "East",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 1.0,
+    "observation_share": 1.0194,
+    "heat_index": 2.0
+  },
+  {
+    "direction": "ESE",
+    "direction_degrees": 112.5,
+    "cardinal_group": "East",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 0.6,
+    "observation_share": 0.6116,
+    "heat_index": 1.2
+  },
+  {
+    "direction": "SE",
+    "direction_degrees": 135.0,
+    "cardinal_group": "Diagonal",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 0.6,
+    "observation_share": 0.6116,
+    "heat_index": 1.2
+  },
+  {
+    "direction": "SSE",
+    "direction_degrees": 157.5,
+    "cardinal_group": "South",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 0.9,
+    "observation_share": 0.9174,
+    "heat_index": 1.8
+  },
+  {
+    "direction": "S",
+    "direction_degrees": 180.0,
+    "cardinal_group": "South",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 1.4,
+    "observation_share": 1.4271,
+    "heat_index": 2.8
+  },
+  {
+    "direction": "SSW",
+    "direction_degrees": 202.5,
+    "cardinal_group": "South",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 1.7,
+    "observation_share": 1.7329,
+    "heat_index": 3.4
+  },
+  {
+    "direction": "SW",
+    "direction_degrees": 225.0,
+    "cardinal_group": "Diagonal",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 1.9,
+    "observation_share": 1.9368,
+    "heat_index": 3.8
+  },
+  {
+    "direction": "WSW",
+    "direction_degrees": 247.5,
+    "cardinal_group": "West",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 2.2,
+    "observation_share": 2.2426,
+    "heat_index": 4.4
+  },
+  {
+    "direction": "W",
+    "direction_degrees": 270.0,
+    "cardinal_group": "West",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 1.8,
+    "observation_share": 1.8349,
+    "heat_index": 3.6
+  },
+  {
+    "direction": "WNW",
+    "direction_degrees": 292.5,
+    "cardinal_group": "West",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 1.7,
+    "observation_share": 1.7329,
+    "heat_index": 3.4
+  },
+  {
+    "direction": "NW",
+    "direction_degrees": 315.0,
+    "cardinal_group": "Diagonal",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 1.8,
+    "observation_share": 1.8349,
+    "heat_index": 3.6
+  },
+  {
+    "direction": "NNW",
+    "direction_degrees": 337.5,
+    "cardinal_group": "North",
+    "strength": "2-3",
+    "strength_order": 2,
+    "frequency_pct": 0.8,
+    "observation_share": 0.8155,
+    "heat_index": 1.6
+  },
+  {
+    "direction": "N",
+    "direction_degrees": 0.0,
+    "cardinal_group": "North",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 0.9,
+    "observation_share": 0.9174,
+    "heat_index": 2.7
+  },
+  {
+    "direction": "NNE",
+    "direction_degrees": 22.5,
+    "cardinal_group": "North",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 0.8,
+    "observation_share": 0.8155,
+    "heat_index": 2.4
+  },
+  {
+    "direction": "NE",
+    "direction_degrees": 45.0,
+    "cardinal_group": "Diagonal",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 1.2,
+    "observation_share": 1.2232,
+    "heat_index": 3.6
+  },
+  {
+    "direction": "ENE",
+    "direction_degrees": 67.5,
+    "cardinal_group": "East",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 1.0,
+    "observation_share": 1.0194,
+    "heat_index": 3.0
+  },
+  {
+    "direction": "E",
+    "direction_degrees": 90.0,
+    "cardinal_group": "East",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 0.8,
+    "observation_share": 0.8155,
+    "heat_index": 2.4
+  },
+  {
+    "direction": "ESE",
+    "direction_degrees": 112.5,
+    "cardinal_group": "East",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 1.2
+  },
+  {
+    "direction": "SE",
+    "direction_degrees": 135.0,
+    "cardinal_group": "Diagonal",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 0.5,
+    "observation_share": 0.5097,
+    "heat_index": 1.5
+  },
+  {
+    "direction": "SSE",
+    "direction_degrees": 157.5,
+    "cardinal_group": "South",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 0.5,
+    "observation_share": 0.5097,
+    "heat_index": 1.5
+  },
+  {
+    "direction": "S",
+    "direction_degrees": 180.0,
+    "cardinal_group": "South",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 0.8,
+    "observation_share": 0.8155,
+    "heat_index": 2.4
+  },
+  {
+    "direction": "SSW",
+    "direction_degrees": 202.5,
+    "cardinal_group": "South",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 0.9,
+    "observation_share": 0.9174,
+    "heat_index": 2.7
+  },
+  {
+    "direction": "SW",
+    "direction_degrees": 225.0,
+    "cardinal_group": "Diagonal",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 1.3,
+    "observation_share": 1.3252,
+    "heat_index": 3.9
+  },
+  {
+    "direction": "WSW",
+    "direction_degrees": 247.5,
+    "cardinal_group": "West",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 1.1,
+    "observation_share": 1.1213,
+    "heat_index": 3.3
+  },
+  {
+    "direction": "W",
+    "direction_degrees": 270.0,
+    "cardinal_group": "West",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 1.2,
+    "observation_share": 1.2232,
+    "heat_index": 3.6
+  },
+  {
+    "direction": "WNW",
+    "direction_degrees": 292.5,
+    "cardinal_group": "West",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 1.2,
+    "observation_share": 1.2232,
+    "heat_index": 3.6
+  },
+  {
+    "direction": "NW",
+    "direction_degrees": 315.0,
+    "cardinal_group": "Diagonal",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 1.3,
+    "observation_share": 1.3252,
+    "heat_index": 3.9
+  },
+  {
+    "direction": "NNW",
+    "direction_degrees": 337.5,
+    "cardinal_group": "North",
+    "strength": "3-4",
+    "strength_order": 3,
+    "frequency_pct": 1.0,
+    "observation_share": 1.0194,
+    "heat_index": 3.0
+  },
+  {
+    "direction": "N",
+    "direction_degrees": 0.0,
+    "cardinal_group": "North",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 1.6
+  },
+  {
+    "direction": "NNE",
+    "direction_degrees": 22.5,
+    "cardinal_group": "North",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.5,
+    "observation_share": 0.5097,
+    "heat_index": 2.0
+  },
+  {
+    "direction": "NE",
+    "direction_degrees": 45.0,
+    "cardinal_group": "Diagonal",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 1.2,
+    "observation_share": 1.2232,
+    "heat_index": 4.8
+  },
+  {
+    "direction": "ENE",
+    "direction_degrees": 67.5,
+    "cardinal_group": "East",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.5,
+    "observation_share": 0.5097,
+    "heat_index": 2.0
+  },
+  {
+    "direction": "E",
+    "direction_degrees": 90.0,
+    "cardinal_group": "East",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 1.6
+  },
+  {
+    "direction": "ESE",
+    "direction_degrees": 112.5,
+    "cardinal_group": "East",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.2,
+    "observation_share": 0.2039,
+    "heat_index": 0.8
+  },
+  {
+    "direction": "SE",
+    "direction_degrees": 135.0,
+    "cardinal_group": "Diagonal",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 1.6
+  },
+  {
+    "direction": "SSE",
+    "direction_degrees": 157.5,
+    "cardinal_group": "South",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 1.6
+  },
+  {
+    "direction": "S",
+    "direction_degrees": 180.0,
+    "cardinal_group": "South",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.7,
+    "observation_share": 0.7136,
+    "heat_index": 2.8
+  },
+  {
+    "direction": "SSW",
+    "direction_degrees": 202.5,
+    "cardinal_group": "South",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.6,
+    "observation_share": 0.6116,
+    "heat_index": 2.4
+  },
+  {
+    "direction": "SW",
+    "direction_degrees": 225.0,
+    "cardinal_group": "Diagonal",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.7,
+    "observation_share": 0.7136,
+    "heat_index": 2.8
+  },
+  {
+    "direction": "WSW",
+    "direction_degrees": 247.5,
+    "cardinal_group": "West",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.8,
+    "observation_share": 0.8155,
+    "heat_index": 3.2
+  },
+  {
+    "direction": "W",
+    "direction_degrees": 270.0,
+    "cardinal_group": "West",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.9,
+    "observation_share": 0.9174,
+    "heat_index": 3.6
+  },
+  {
+    "direction": "WNW",
+    "direction_degrees": 292.5,
+    "cardinal_group": "West",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 1.0,
+    "observation_share": 1.0194,
+    "heat_index": 4.0
+  },
+  {
+    "direction": "NW",
+    "direction_degrees": 315.0,
+    "cardinal_group": "Diagonal",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 1.0,
+    "observation_share": 1.0194,
+    "heat_index": 4.0
+  },
+  {
+    "direction": "NNW",
+    "direction_degrees": 337.5,
+    "cardinal_group": "North",
+    "strength": "4-4",
+    "strength_order": 4,
+    "frequency_pct": 0.7,
+    "observation_share": 0.7136,
+    "heat_index": 2.8
+  },
+  {
+    "direction": "N",
+    "direction_degrees": 0.0,
+    "cardinal_group": "North",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.3,
+    "observation_share": 0.3058,
+    "heat_index": 1.2
+  },
+  {
+    "direction": "NNE",
+    "direction_degrees": 22.5,
+    "cardinal_group": "North",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.3,
+    "observation_share": 0.3058,
+    "heat_index": 1.2
+  },
+  {
+    "direction": "NE",
+    "direction_degrees": 45.0,
+    "cardinal_group": "Diagonal",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.6,
+    "observation_share": 0.6116,
+    "heat_index": 2.4
+  },
+  {
+    "direction": "ENE",
+    "direction_degrees": 67.5,
+    "cardinal_group": "East",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.2,
+    "observation_share": 0.2039,
+    "heat_index": 0.8
+  },
+  {
+    "direction": "E",
+    "direction_degrees": 90.0,
+    "cardinal_group": "East",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.4
+  },
+  {
+    "direction": "ESE",
+    "direction_degrees": 112.5,
+    "cardinal_group": "East",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.4
+  },
+  {
+    "direction": "SE",
+    "direction_degrees": 135.0,
+    "cardinal_group": "Diagonal",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.05,
+    "observation_share": 0.051,
+    "heat_index": 0.2
+  },
+  {
+    "direction": "SSE",
+    "direction_degrees": 157.5,
+    "cardinal_group": "South",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.4
+  },
+  {
+    "direction": "S",
+    "direction_degrees": 180.0,
+    "cardinal_group": "South",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.4
+  },
+  {
+    "direction": "SSW",
+    "direction_degrees": 202.5,
+    "cardinal_group": "South",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.2,
+    "observation_share": 0.2039,
+    "heat_index": 0.8
+  },
+  {
+    "direction": "SW",
+    "direction_degrees": 225.0,
+    "cardinal_group": "Diagonal",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.3,
+    "observation_share": 0.3058,
+    "heat_index": 1.2
+  },
+  {
+    "direction": "WSW",
+    "direction_degrees": 247.5,
+    "cardinal_group": "West",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 1.6
+  },
+  {
+    "direction": "W",
+    "direction_degrees": 270.0,
+    "cardinal_group": "West",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.9,
+    "observation_share": 0.9174,
+    "heat_index": 3.6
+  },
+  {
+    "direction": "WNW",
+    "direction_degrees": 292.5,
+    "cardinal_group": "West",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.9,
+    "observation_share": 0.9174,
+    "heat_index": 3.6
+  },
+  {
+    "direction": "NW",
+    "direction_degrees": 315.0,
+    "cardinal_group": "Diagonal",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.9,
+    "observation_share": 0.9174,
+    "heat_index": 3.6
+  },
+  {
+    "direction": "NNW",
+    "direction_degrees": 337.5,
+    "cardinal_group": "North",
+    "strength": "4-5",
+    "strength_order": 4,
+    "frequency_pct": 0.3,
+    "observation_share": 0.3058,
+    "heat_index": 1.2
+  },
+  {
+    "direction": "N",
+    "direction_degrees": 0.0,
+    "cardinal_group": "North",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.2,
+    "observation_share": 0.2039,
+    "heat_index": 1.0
+  },
+  {
+    "direction": "NNE",
+    "direction_degrees": 22.5,
+    "cardinal_group": "North",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.5
+  },
+  {
+    "direction": "NE",
+    "direction_degrees": 45.0,
+    "cardinal_group": "Diagonal",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.5
+  },
+  {
+    "direction": "ENE",
+    "direction_degrees": 67.5,
+    "cardinal_group": "East",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.5
+  },
+  {
+    "direction": "E",
+    "direction_degrees": 90.0,
+    "cardinal_group": "East",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.5
+  },
+  {
+    "direction": "ESE",
+    "direction_degrees": 112.5,
+    "cardinal_group": "East",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.5
+  },
+  {
+    "direction": "SE",
+    "direction_degrees": 135.0,
+    "cardinal_group": "Diagonal",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.05,
+    "observation_share": 0.051,
+    "heat_index": 0.25
+  },
+  {
+    "direction": "SSE",
+    "direction_degrees": 157.5,
+    "cardinal_group": "South",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.05,
+    "observation_share": 0.051,
+    "heat_index": 0.25
+  },
+  {
+    "direction": "S",
+    "direction_degrees": 180.0,
+    "cardinal_group": "South",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.5
+  },
+  {
+    "direction": "SSW",
+    "direction_degrees": 202.5,
+    "cardinal_group": "South",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.05,
+    "observation_share": 0.051,
+    "heat_index": 0.25
+  },
+  {
+    "direction": "SW",
+    "direction_degrees": 225.0,
+    "cardinal_group": "Diagonal",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.2,
+    "observation_share": 0.2039,
+    "heat_index": 1.0
+  },
+  {
+    "direction": "WSW",
+    "direction_degrees": 247.5,
+    "cardinal_group": "West",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.2,
+    "observation_share": 0.2039,
+    "heat_index": 1.0
+  },
+  {
+    "direction": "W",
+    "direction_degrees": 270.0,
+    "cardinal_group": "West",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 2.0
+  },
+  {
+    "direction": "WNW",
+    "direction_degrees": 292.5,
+    "cardinal_group": "West",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.7,
+    "observation_share": 0.7136,
+    "heat_index": 3.5
+  },
+  {
+    "direction": "NW",
+    "direction_degrees": 315.0,
+    "cardinal_group": "Diagonal",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.7,
+    "observation_share": 0.7136,
+    "heat_index": 3.5
+  },
+  {
+    "direction": "NNW",
+    "direction_degrees": 337.5,
+    "cardinal_group": "North",
+    "strength": "5-6",
+    "strength_order": 5,
+    "frequency_pct": 0.4,
+    "observation_share": 0.4077,
+    "heat_index": 2.0
+  },
+  {
+    "direction": "N",
+    "direction_degrees": 0.0,
+    "cardinal_group": "North",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.6
+  },
+  {
+    "direction": "NNE",
+    "direction_degrees": 22.5,
+    "cardinal_group": "North",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.6
+  },
+  {
+    "direction": "NE",
+    "direction_degrees": 45.0,
+    "cardinal_group": "Diagonal",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.6
+  },
+  {
+    "direction": "ENE",
+    "direction_degrees": 67.5,
+    "cardinal_group": "East",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.6
+  },
+  {
+    "direction": "E",
+    "direction_degrees": 90.0,
+    "cardinal_group": "East",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.6
+  },
+  {
+    "direction": "ESE",
+    "direction_degrees": 112.5,
+    "cardinal_group": "East",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.05,
+    "observation_share": 0.051,
+    "heat_index": 0.3
+  },
+  {
+    "direction": "SE",
+    "direction_degrees": 135.0,
+    "cardinal_group": "Diagonal",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.05,
+    "observation_share": 0.051,
+    "heat_index": 0.3
+  },
+  {
+    "direction": "SSE",
+    "direction_degrees": 157.5,
+    "cardinal_group": "South",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.05,
+    "observation_share": 0.051,
+    "heat_index": 0.3
+  },
+  {
+    "direction": "S",
+    "direction_degrees": 180.0,
+    "cardinal_group": "South",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.05,
+    "observation_share": 0.051,
+    "heat_index": 0.3
+  },
+  {
+    "direction": "SSW",
+    "direction_degrees": 202.5,
+    "cardinal_group": "South",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.6
+  },
+  {
+    "direction": "SW",
+    "direction_degrees": 225.0,
+    "cardinal_group": "Diagonal",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.6
+  },
+  {
+    "direction": "WSW",
+    "direction_degrees": 247.5,
+    "cardinal_group": "West",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.1,
+    "observation_share": 0.1019,
+    "heat_index": 0.6
+  },
+  {
+    "direction": "W",
+    "direction_degrees": 270.0,
+    "cardinal_group": "West",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.9,
+    "observation_share": 0.9174,
+    "heat_index": 5.4
+  },
+  {
+    "direction": "WNW",
+    "direction_degrees": 292.5,
+    "cardinal_group": "West",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 2.2,
+    "observation_share": 2.2426,
+    "heat_index": 13.2
+  },
+  {
+    "direction": "NW",
+    "direction_degrees": 315.0,
+    "cardinal_group": "Diagonal",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 1.5,
+    "observation_share": 1.5291,
+    "heat_index": 9.0
+  },
+  {
+    "direction": "NNW",
+    "direction_degrees": 337.5,
+    "cardinal_group": "North",
+    "strength": "6+",
+    "strength_order": 6,
+    "frequency_pct": 0.2,
+    "observation_share": 0.2039,
+    "heat_index": 1.2
+  }
+]

@@ -23,11 +23,11 @@
     },
     {
       "name": "echarts",
-      "version": "6.0.0",
+      "version": "6.1.0",
       "path": "vendor/echarts/echarts.esm.min.js",
       "license": "Apache-2.0",
-      "source": "https://www.npmjs.com/package/echarts/v/6.0.0",
-      "sha256": "b920493ac9036ac02fcb0de0a907ff9709e7bd1ff92b333c46c61b34589265ac",
+      "source": "https://www.npmjs.com/package/echarts/v/6.1.0",
+      "sha256": "28515f26aa57f87eb1e4ed4eb446927eaf329b5f5e02b4bfd4b0264fea40d1da",
       "required": true,
       "usedBy": ["authoring", "standalone"],
       "status": "vendored"

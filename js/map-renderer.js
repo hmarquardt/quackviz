@@ -4,6 +4,7 @@ import { adaptMapLibreFeatureClick } from "./selection-adapters.js";
 
 let maplibreModule = null;
 const instances = new Map();
+const renderGenerations = new Map();
 let status = {
   maplibrePackageVersion: DEPENDENCIES.maplibre.version,
   maplibreRuntimeVersion: "not loaded",
@@ -31,6 +32,9 @@ export function getMapInstanceDiagnostics(instanceId) {
     runtimeVersion: status.maplibreRuntimeVersion,
     sourceIds: Object.keys(style?.sources || {}),
     layerIds: (style?.layers || []).map((layer) => layer.id),
+    featureCount: instances.get(instanceId)?.compiled?.sources?.quackviz_points?.data?.features?.length
+      ?? instances.get(instanceId)?.compiled?.sources?.quackviz_regions?.data?.features?.length
+      ?? 0,
     removed: Boolean(map._removed),
   };
 }
@@ -61,15 +65,16 @@ export async function createMapInstance(container, instanceId, options = {}) {
   return map;
 }
 
-export async function renderMapInstance(instanceId, compiledMap) {
+export async function renderMapInstance(instanceId, compiledMap, isCurrent = () => true) {
   const entry = instances.get(instanceId);
   if (!entry) throw new Error(`Map instance '${instanceId}' does not exist.`);
   const started = performance.now?.() || Date.now();
   const map = entry.map;
   await mapReady(map);
+  if (!isCurrent()) return false;
   if (map.setStyle) {
-    map.setStyle(compiledMap.style);
-    await mapReady(map);
+    await replaceStyle(map, compiledMap.style);
+    if (!isCurrent()) return false;
   }
   for (const [id, source] of Object.entries(compiledMap.sources || {})) {
     if (map.getSource?.(id)) map.getSource(id).setData?.(source.data);
@@ -82,6 +87,7 @@ export async function renderMapInstance(instanceId, compiledMap) {
   entry.compiled = compiledMap;
   status.lastRenderDuration = Math.round((performance.now?.() || Date.now()) - started);
   status.error = null;
+  return true;
 }
 
 export function resizeMapInstance(instanceId) {
@@ -102,10 +108,16 @@ export function disposeAllMaps() {
 }
 
 export async function renderMapVisualization(element, spec, dataset, themeTokens, instanceId = "map_main", interaction = null) {
+  const generation = (renderGenerations.get(instanceId) || 0) + 1;
+  renderGenerations.set(instanceId, generation);
+  const isCurrent = () => renderGenerations.get(instanceId) === generation;
   try {
     const compiled = await compileMapSpec(spec, dataset, themeTokens);
+    if (!isCurrent()) return compiled;
     await createMapInstance(element, instanceId, { style: compiled.style, center: spec.map?.center || undefined, zoom: spec.map?.zoom ?? undefined });
-    await renderMapInstance(instanceId, compiled);
+    if (!isCurrent()) return compiled;
+    const rendered = await renderMapInstance(instanceId, compiled, isCurrent);
+    if (!rendered) return compiled;
     bindMapInteraction(instanceId, spec, interaction);
     return compiled;
   } catch (error) {
@@ -172,6 +184,16 @@ function coordinates(geometry) {
 function mapReady(map) {
   if (!map.once || map.loaded?.()) return Promise.resolve();
   return new Promise((resolve) => map.once("load", resolve));
+}
+
+function replaceStyle(map, style) {
+  if (!map.once) {
+    map.setStyle(style);
+    return Promise.resolve();
+  }
+  const ready = new Promise((resolve) => map.once("style.load", resolve));
+  map.setStyle(style);
+  return map.isStyleLoaded?.() ? Promise.resolve() : ready;
 }
 
 function blankStyle() {

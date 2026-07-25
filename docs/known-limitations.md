@@ -13,3 +13,6 @@ Last verified: 2026-07-25.
 | Accessibility | Automated axe checks cover required screens, but independent WCAG conformance is not established | All | Report remaining issues through the documented support workflow | Medium | Ongoing |
 | PDF | Reports use browser Print / Save as PDF | All | Use the browser print dialog | Low | By design |
 | Sharing | No server-backed publishing or collaboration | All | Export a standalone app or backup | Low | Out of scope |
+| Charts | The stable selector currently exposes line and vertical bar charts | All | Use SQL summaries with the stable types | Medium | Planned |
+| World choropleth | The built-in world boundary has six simplified demonstration geometries | All | Use country centroid point maps | High | Planned |
+| Showcase hero | The requested scatter, heatmap, KPI-row, and global choropleth hero cannot be built from the current stable line/bar and illustrative-boundary surface | All | Use the documented line, bar, and point-map examples | High | RC blocker |

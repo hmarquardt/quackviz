@@ -29,7 +29,7 @@ test("real local-file no-AI workflow", async ({ page }) => {
     const { getChartInstanceDiagnostics } = await import("/js/viz-renderer.js");
     return getChartInstanceDiagnostics("main");
   });
-  expect(chart.runtimeVersion).toBe("6.0.0");
+  expect(chart.runtimeVersion).toBe("6.1.0");
   expect(chart.seriesTypes).toEqual(["line"]);
   expect(chart.datasetRowCount).toBeGreaterThan(0);
   await page.getByTestId("save-viz").click();

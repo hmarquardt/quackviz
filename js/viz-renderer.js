@@ -27,7 +27,7 @@ export function getChartInstanceDiagnostics(instanceId) {
     disposed: Boolean(chart.isDisposed?.()),
     seriesTypes: (option?.series || []).map((series) => series.type),
     seriesDataCounts: (option?.series || []).map((series) => series.data?.length || 0),
-    datasetRowCount: Math.max(0, (option?.dataset?.[0]?.source || option?.dataset?.source || []).length - 1),
+    datasetRowCount: (option?.dataset?.[0]?.source || option?.dataset?.source || []).length,
   };
 }
 

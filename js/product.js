@@ -7,6 +7,7 @@ export const ONBOARDING_STORAGE_KEYS = {
 
 export const HELP_TOPICS = [
   { id: "getting-started", title: "Getting started", path: "docs/getting-started.md", keywords: ["first run", "workflow", "add data"] },
+  { id: "showcase", title: "Showcase examples", path: "docs/showcase.md", keywords: ["examples", "demo", "gapminder", "montreal", "stocks", "iris", "wind"] },
   { id: "importing-data", title: "Importing data", path: "docs/importing-data.md", keywords: ["csv", "json", "parquet", "url", "cors"] },
   { id: "sql", title: "Writing SQL", path: "docs/sql.md", keywords: ["duckdb", "query", "starter"] },
   { id: "visualizations", title: "Building charts", path: "docs/visualizations.md", keywords: ["chart", "echarts", "map"] },
@@ -19,6 +20,14 @@ export const HELP_TOPICS = [
   { id: "shortcuts", title: "Keyboard shortcuts", path: "docs/keyboard-shortcuts.md", keywords: ["command palette", "keyboard"] },
   { id: "troubleshooting", title: "Troubleshooting", path: "docs/troubleshooting.md", keywords: ["cors", "reload", "limits"] },
   { id: "limitations", title: "Beta limitations", path: "docs/troubleshooting.md#beta-limitations", keywords: ["beta", "browser limits", "known limitations"] },
+];
+
+export const SHOWCASE_DATASETS = [
+  { file: "01_global_development_odyssey.json", title: "Global Development Odyssey", rows: 1704, description: "Historical country development indicators through 2007.", bestFor: "Line charts, ranked bars, and country point maps.", source: "Transformed Gapminder demonstration data" },
+  { file: "02_montreal_mobility_constellation.json", title: "Montreal Mobility Constellation", rows: 249, description: "Montreal car-sharing availability hotspots.", bestFor: "Clustered, proportional-symbol, and category point maps.", source: "Transformed Plotly Montreal car-sharing data" },
+  { file: "03_tech_stock_time_machine.json", title: "Tech Stock Time Machine", rows: 630, description: "Demonstration technology-stock index series.", bestFor: "Multi-series trends and ranked drawdowns.", source: "Transformed Plotly stock index demonstration data" },
+  { file: "04_iris_morphology_lab.json", title: "Iris Morphology Lab", rows: 150, description: "Fisher iris measurements with derived morphology fields.", bestFor: "Category comparisons and numerical summaries.", source: "Transformed Fisher/UCI Iris data" },
+  { file: "05_wind_rose_observatory.json", title: "Wind Rose Observatory", rows: 128, description: "Wind direction and strength frequencies.", bestFor: "Direction rankings and grouped bar analysis.", source: "Transformed Plotly wind demonstration data" },
 ];
 
 export const KEYBOARD_SHORTCUTS = [

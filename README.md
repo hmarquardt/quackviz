@@ -2,6 +2,8 @@
 
 QuackViz Beta is a static, browser-local analytical workspace for loading local data, querying it with DuckDB-WASM, and turning results into charts, maps, dashboards, reports, and portable local packages.
 
+Five import-ready public demonstration datasets, their attribution, and a short evaluation workflow are documented in the [showcase guide](docs/showcase.md).
+
 Current version: `1.0.0-beta.2`
 Build date: `2026-07-25`
 
@@ -144,9 +146,12 @@ npm run test:e2e:headed
 npm run test:e2e:debug
 npm run test:e2e:report
 npm run release:check
+npm run rc:check
 ```
 
 Traces, screenshots, and videos are retained for failures under `test-results/`; the HTML report is written to `playwright-report/`.
+
+The final beta qualification run on 2026-07-25 passed 100 of 108 Playwright cases with 8 documented Firefox/WebKit skips, no failures, and no flaky tests. Automated RC checks are green, but the release remains beta because the requested showcase hero requires chart and boundary capabilities that are not currently stable.
 
 ## Architecture
 
@@ -156,13 +161,14 @@ Format contracts and module boundaries remain versioned in source constants and 
 
 ## Dependency Versions
 
-- Apache ECharts `6.0.0`
+- Apache ECharts `6.1.0`
 - DuckDB-WASM `1.33.1-dev57.0`
 - MapLibre GL JS `5.24.0`
 - TopoJSON Client `3.1.0`
 - JSZip `3.10.1`
 
 Required runtime files are vendored under `vendor/`; normal startup does not use a public runtime CDN.
+The vendor tree is approximately 78 MB. Most of that footprint is the DuckDB-WASM MVP and exception-handling binaries retained for browser capability fallback; no browser binaries, generated caches, or source maps are included.
 
 ## Known Limitations
 

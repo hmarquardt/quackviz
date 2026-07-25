@@ -16,7 +16,7 @@ export const EMBED_FORMAT_VERSION = 1;
 export const DEPENDENCIES = {
   echarts: {
     packageName: "echarts",
-    version: "6.0.0",
+    version: "6.1.0",
     url: "../vendor/echarts/echarts.esm.min.js",
     localUrl: "vendor/echarts/echarts.esm.min.js",
   },

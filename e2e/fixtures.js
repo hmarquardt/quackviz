@@ -1,7 +1,7 @@
 const { test: base, expect } = require("@playwright/test");
 
 const echartsMock = `
-export const version = "6.0.0-e2e";
+export const version = "6.1.0-e2e";
 export function init(container) {
   container.textContent = "";
   const canvas = document.createElement("canvas");

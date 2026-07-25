@@ -10,7 +10,7 @@ import { isMapSpec } from "./map-spec.js";
 import { getRendererStatus } from "./viz-renderer.js";
 import { chartTypes, defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
 import { html, safeString, truncate } from "./utils.js";
-import { HELP_TOPICS, KEYBOARD_SHORTCUTS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "./product.js";
+import { HELP_TOPICS, KEYBOARD_SHORTCUTS, SHOWCASE_DATASETS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "./product.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -725,6 +725,14 @@ function helpContent(topic) {
   const commonFooter = `<p><a href="${html(topic.path)}" target="_blank" rel="noreferrer">Open local documentation file</a></p>`;
   const content = {
     "getting-started": `<h3>Getting started</h3><p>Use the main workflow: add data, inspect columns, run SQL, build a chart, then save it for dashboards or reports.</p>`,
+    showcase: `<h3>Showcase examples</h3><p>These public demonstration datasets use the normal JSON import workflow. Loading an example prepares it in Data; review the proposed table and press Import.</p>
+      <div class="showcase-list">${SHOWCASE_DATASETS.map((dataset) => `<article class="object-item">
+        <strong>${html(dataset.title)}</strong>
+        <p>${html(dataset.description)}</p>
+        <small>${dataset.rows.toLocaleString()} rows · ${html(dataset.bestFor)}<br>${html(dataset.source)}</small>
+        <button data-product-action="load-showcase" data-showcase-file="${html(dataset.file)}" data-testid="showcase-load-${html(dataset.file.replace(".json", ""))}">Prepare example</button>
+      </article>`).join("")}</div>
+      <p class="muted">Demonstration data contains no private workspace data. QuackViz does not upload it.</p>`,
     "importing-data": `<h3>Importing data</h3><p>Choose or drop CSV, JSON, NDJSON/JSONL, or Parquet files. URL imports are explicit and depend on the remote server allowing browser CORS access.</p>`,
     sql: `<h3>Writing SQL</h3><p>QuackViz runs DuckDB SQL locally. Use starter queries for row counts, previews, summaries, and date ranges.</p>`,
     visualizations: `<h3>Building charts</h3><p>Run a query first, then choose chart settings. Save the visualization before adding it to dashboards or reports.</p>`,

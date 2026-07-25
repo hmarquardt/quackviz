@@ -54,13 +54,14 @@ import { compileVisualizationSpec } from "./viz-compiler.js";
 import { disposeChartInstance, renderVisualization, showEmpty } from "./viz-renderer.js";
 import { copyText, escapeIdent, nowIso, uid } from "./utils.js";
 import { elements, getThemeTokens, initializeStaticControls, renderApp, renderSelfTest, seedDefaultSql, selectTab } from "./ui.js";
-import { HELP_TOPICS, ONBOARDING_STORAGE_KEYS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "./product.js";
+import { HELP_TOPICS, ONBOARDING_STORAGE_KEYS, SHOWCASE_DATASETS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "./product.js";
 
 let saveSuppressed = false;
 let currentAiAbortController = null;
 let currentDashboardAbortController = null;
 let currentReportAbortController = null;
 let currentImportAbortController = null;
+let visualizationRenderRevision = 0;
 const interactionBus = createInteractionBus();
 const startupTracker = createStartupTracker();
 const workerManager = createWorkerManager({ workerUrl: "workers/data-worker.js" });
@@ -241,6 +242,27 @@ function handleProductAction(event) {
   } else if (action === "help-topic") {
     state.product.activeHelpTopicId = target.dataset.topicId || "getting-started";
     notify();
+  } else if (action === "load-showcase") {
+    loadShowcaseDataset(target.dataset.showcaseFile);
+  }
+}
+
+async function loadShowcaseDataset(fileName) {
+  const dataset = SHOWCASE_DATASETS.find((item) => item.file === fileName);
+  if (!dataset) {
+    addError("showcase", "prepare", new Error("The selected showcase dataset is not registered."));
+    return;
+  }
+  try {
+    const response = await fetch(new URL(`../examples/showcase/${dataset.file}`, import.meta.url));
+    if (!response.ok) throw new Error(`Showcase file could not be loaded (${response.status}).`);
+    const file = new File([await response.blob()], dataset.file, { type: "application/json" });
+    prepareFileImport([file]);
+    closeDialog(elements().helpDialog);
+    selectTab("data");
+    addStatus("showcase", "prepare", `${dataset.title} is ready for normal JSON import.`);
+  } catch (error) {
+    addError("showcase", "prepare", error);
   }
 }
 
@@ -793,6 +815,7 @@ function mapSpecFromControls(el) {
 }
 
 async function rebuildVisualization() {
+  const renderRevision = ++visualizationRenderRevision;
   if (!state.currentResult || state.currentResult.error) {
     showEmpty(elements().chart, "Run a successful query to render a chart.");
     return;
@@ -806,8 +829,9 @@ async function rebuildVisualization() {
   }
   try {
     const option = isMapSpec(validation.spec)
-      ? await renderCurrentMap(validation.spec)
+      ? await renderCurrentMap(validation.spec, renderRevision)
       : await renderVisualization(elements().chart, validation.spec, state.currentResult, getThemeTokens(activeThemeName()));
+    if (renderRevision !== visualizationRenderRevision) return;
     setCurrentOption(option);
     elements().vizStatus.textContent = isMapSpec(validation.spec) ? "Map rendered." : "Chart rendered.";
   } catch (error) {
@@ -815,8 +839,9 @@ async function rebuildVisualization() {
   }
 }
 
-async function renderCurrentMap(spec) {
+async function renderCurrentMap(spec, renderRevision) {
   const validation = await validateMapSpec(spec, state.currentResult);
+  if (renderRevision !== visualizationRenderRevision) return null;
   setCurrentSpec(validation.spec);
   if (!validation.valid) {
     showEmpty(elements().chart, "Fix map validation errors to render a map.");
@@ -828,6 +853,7 @@ async function renderCurrentMap(spec) {
     state.map.lastCoordinateProfile = profileCoordinates(state.currentResult.rows || [], validation.spec.encoding.latitude.field, validation.spec.encoding.longitude.field);
   }
   const compiled = await renderMapVisualization(elements().chart, validation.spec, state.currentResult, getThemeTokens(activeThemeName()), "main_map");
+  if (renderRevision !== visualizationRenderRevision) return null;
   state.map.lastDiagnostics = compiled.diagnostics;
   state.map.lastError = null;
   return compiled;

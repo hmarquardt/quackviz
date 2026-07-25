@@ -1,5 +1,23 @@
 # Changelog
 
+## 1.0.0-beta.2 qualification work (unreleased)
+
+### Changed
+
+- Added the public showcase pack as ordinary JSON examples under `examples/showcase`.
+- Added a Help gallery that prepares showcase files through the normal import confirmation flow.
+- Upgraded the vendored ECharts runtime to 6.1.0 to resolve GHSA-fgmj-fm8m-jvvx.
+- Expanded real cross-browser line/bar, JSON import, and local point-map validation.
+- Added `npm run rc:check`; the final 2026-07-25 run passed 100 of 108 Playwright cases with 8 documented browser-specific skips and no failures or flaky tests.
+- Reviewed all required axe screens with zero critical, serious, moderate, or minor findings in the final run.
+
+### Known limitations
+
+- Scatter, area, heatmap, histogram, box plot, horizontal bar, bubble sizing, and polar charts are not stable selector options.
+- The simplified world boundary is not sufficient for a showcase-quality global choropleth.
+- Manual Safari validation remains outstanding.
+- RC qualification is withheld until the requested hero dashboard/report can be produced with stable product capabilities and the pushed deployment receives a full showcase smoke review.
+
 ## 1.0.0-beta.2 - 2026-07-25
 
 ### Fixed

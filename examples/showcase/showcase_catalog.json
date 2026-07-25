@@ -1,0 +1,91 @@
+{
+  "pack": "QuackViz Showcase Pack",
+  "version": 1,
+  "created": "2026-07-25",
+  "datasets": [
+    {
+      "file": "01_global_development_odyssey.json",
+      "title": "Global Development Odyssey",
+      "rows": 1704,
+      "best_for": [
+        "animated-style year slices",
+        "country bubble plots",
+        "point maps",
+        "choropleths by ISO code",
+        "ranked bars",
+        "continent dashboards",
+        "development trajectory lines"
+      ],
+      "hero_views": [
+        {
+          "name": "Health vs Wealth",
+          "chart": "scatter",
+          "x": "gdpPercap",
+          "y": "lifeExp",
+          "size": "population_millions",
+          "color": "continent",
+          "filter": "year = 2007"
+        },
+        {
+          "name": "World Development Map",
+          "chart": "proportional-symbol map",
+          "lat": "centroid_lat",
+          "lon": "centroid_lon",
+          "size": "population_millions",
+          "color": "development_score",
+          "filter": "year = 2007"
+        }
+      ]
+    },
+    {
+      "file": "02_montreal_mobility_constellation.json",
+      "title": "Montreal Mobility Constellation",
+      "rows": 249,
+      "best_for": [
+        "cluster maps",
+        "proportional-symbol maps",
+        "category-colored points",
+        "peak-hour histograms",
+        "availability vs peak-hour scatter"
+      ]
+    },
+    {
+      "file": "03_tech_stock_time_machine.json",
+      "title": "Tech Stock Time Machine",
+      "rows": 630,
+      "best_for": [
+        "multi-series lines",
+        "drawdown areas",
+        "return distributions",
+        "volatility heatmaps",
+        "small multiples",
+        "momentum dashboards"
+      ]
+    },
+    {
+      "file": "04_iris_morphology_lab.json",
+      "title": "Iris Morphology Lab",
+      "rows": 150,
+      "best_for": [
+        "scatter matrices",
+        "box plots",
+        "histograms",
+        "classification clusters",
+        "parallel-coordinate style views",
+        "correlation exploration"
+      ]
+    },
+    {
+      "file": "05_wind_rose_observatory.json",
+      "title": "Wind Rose Observatory",
+      "rows": 128,
+      "best_for": [
+        "heatmaps",
+        "stacked bars",
+        "polar/radar charts where supported",
+        "direction rankings",
+        "strength distributions"
+      ]
+    }
+  ]
+}

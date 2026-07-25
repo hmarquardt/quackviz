@@ -12,10 +12,23 @@ let status = {
 
 export async function loadECharts() {
   if (!echartsModule) {
-    echartsModule = await import(DEPENDENCIES.echarts.url);
+    echartsModule = await import(new URL(DEPENDENCIES.echarts.url, import.meta.url).href);
     status.echartsRuntimeVersion = echartsModule.version || "unknown";
   }
   return echartsModule;
+}
+
+export function getChartInstanceDiagnostics(instanceId) {
+  const chart = instances.get(instanceId)?.chart;
+  if (!chart) return null;
+  const option = chart.getOption?.() || null;
+  return {
+    runtimeVersion: status.echartsRuntimeVersion,
+    disposed: Boolean(chart.isDisposed?.()),
+    seriesTypes: (option?.series || []).map((series) => series.type),
+    seriesDataCounts: (option?.series || []).map((series) => series.data?.length || 0),
+    datasetRowCount: Math.max(0, (option?.dataset?.[0]?.source || option?.dataset?.source || []).length - 1),
+  };
 }
 
 export function getRendererStatus() {

@@ -17,18 +17,21 @@ export const DEPENDENCIES = {
   echarts: {
     packageName: "echarts",
     version: "6.0.0",
-    url: "https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.esm.min.js",
+    url: "../vendor/echarts/echarts.esm.min.js",
+    localUrl: "vendor/echarts/echarts.esm.min.js",
   },
   duckdbWasm: {
     packageName: "@duckdb/duckdb-wasm",
     version: "1.33.1-dev57.0",
-    url: "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm",
+    url: "../vendor/duckdb/duckdb-browser.mjs",
+    localUrl: "vendor/duckdb/duckdb-browser.mjs",
   },
   maplibre: {
     packageName: "maplibre-gl",
     version: "5.24.0",
-    url: "https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/+esm",
-    cssUrl: "https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css",
+    url: "../vendor/maplibre/maplibre-gl.js",
+    cssUrl: "../vendor/maplibre/maplibre-gl.css",
+    localUrl: "vendor/maplibre/maplibre-gl.js",
   },
 };
 

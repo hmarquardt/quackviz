@@ -7,6 +7,15 @@
 - Added Firefox and WebKit Playwright projects to the checked-in release suite.
 - Narrowed the expected Firefox CORS diagnostic to the deliberate blocked-URL test.
 - Preserved jsDelivr dependency origins during WebKit tests so DuckDB transitive ESM imports resolve correctly.
+- Vendored DuckDB-WASM, ECharts, and MapLibre runtime assets for local core startup.
+- Removed invalid properties from blank MapLibre styles and point layers.
+- Added missing accessible labels, keyboard access for AI context output, and a valid notification status role.
+
+### Added
+
+- Real Chromium release gates for local CSV, Parquet, ECharts, MapLibre, offline operation, and nested-path hosting.
+- Axe release checks for the primary application screens.
+- Deterministic version and required vendor-hash preflight checks.
 
 ### Verified
 
@@ -14,10 +23,10 @@
 - Firefox baseline before correction: 21 passed, 1 expected-CORS console mismatch.
 - WebKit baseline before correction: 22 failed because redirected DuckDB ESM imports resolved against the local test origin.
 
-### Release Blockers Remaining
+### Known Limitations
 
-- Runtime dependencies are CDN-pinned rather than locally vendored, so offline analytical startup is not yet a release-candidate claim.
-- Real ECharts and MapLibre release scenarios, automated axe coverage, and Safari manual verification remain incomplete.
+- Safari has not been manually validated; Playwright WebKit is not equivalent to Safari.
+- Firefox and WebKit renderer coordination is covered, but the required real WebGL renderer gate remains Chromium-specific.
 
 ## 1.0.0-beta.1 - 2026-07-25
 

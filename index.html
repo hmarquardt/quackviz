@@ -131,7 +131,7 @@
           </div>
           <label>Query name <input id="queryName" value="Monthly revenue" data-testid="query-name"></label>
           <div id="starterQueries" class="starter-queries" data-testid="starter-queries"></div>
-          <textarea id="sqlEditor" spellcheck="false" data-testid="sql-editor"></textarea>
+          <textarea id="sqlEditor" spellcheck="false" aria-label="SQL query" data-testid="sql-editor"></textarea>
           <div class="query-meta">
             <span id="queryRuntime">Runtime: -</span>
             <span id="queryRows" data-testid="query-rows">Rows: -</span>
@@ -190,7 +190,7 @@
                 <label>Custom system prompt <textarea id="aiSystemPrompt"></textarea></label>
               </details>
               <div id="aiSharingNotice" class="notice"></div>
-              <pre id="aiContextPreview" class="debug-report"></pre>
+              <pre id="aiContextPreview" class="debug-report" tabindex="0" aria-label="AI context preview"></pre>
               <div class="button-row">
                 <button id="previewAiContext">Refresh context preview</button>
                 <button id="runAi" class="primary">Run AI action</button>
@@ -385,11 +385,11 @@
             <button id="copySpec">Copy spec</button>
             <span id="specStatus" class="status">Spec version 1</span>
           </div>
-          <textarea id="specEditor" spellcheck="false" readonly></textarea>
+          <textarea id="specEditor" spellcheck="false" aria-label="Visualization specification" readonly></textarea>
         </section>
       </aside>
     </div>
-    <div id="toastRegion" class="toast-region" aria-live="polite" aria-label="Notifications" data-testid="toast-region"></div>
+    <div id="toastRegion" class="toast-region" role="status" aria-live="polite" aria-label="Notifications" data-testid="toast-region"></div>
     <dialog id="welcomeDialog" class="product-dialog" data-testid="welcome-dialog" aria-labelledby="welcomeTitle">
       <h2 id="welcomeTitle">Welcome to QuackViz Beta</h2>
       <p>QuackViz analyzes local data in your browser with DuckDB-WASM, ECharts, and MapLibre. Nothing is uploaded automatically.</p>

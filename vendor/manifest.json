@@ -5,34 +5,68 @@
   "buildDate": "2026-07-25",
   "dependencies": [
     {
-      "name": "echarts",
-      "version": "6.0.0",
-      "path": null,
-      "license": "Apache-2.0",
-      "source": "https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.esm.min.js",
-      "sha256": null,
-      "usedBy": ["authoring", "standalone"],
-      "status": "cdn-pinned"
-    },
-    {
       "name": "@duckdb/duckdb-wasm",
       "version": "1.33.1-dev57.0",
-      "path": null,
+      "path": "vendor/duckdb/duckdb-browser.mjs",
       "license": "MIT",
-      "source": "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm",
-      "sha256": null,
+      "source": "https://www.npmjs.com/package/@duckdb/duckdb-wasm/v/1.33.1-dev57.0",
+      "sha256": "a3ba99b0451c24c326637a99d1a7a4b93b13bcaec16da99f8b97980a352236cc",
+      "files": [
+        { "path": "vendor/duckdb/duckdb-browser-eh.worker.js", "sha256": "fa889e6068c40426dea67c08cf16ce0cad7404eae94f6a2522adcabb5898eb93" },
+        { "path": "vendor/duckdb/duckdb-browser-mvp.worker.js", "sha256": "964f678d3bfa5a23deb154e0a7950634a4d1415e571040ab2d47815dc3f13582" },
+        { "path": "vendor/duckdb/duckdb-eh.wasm", "sha256": "3abdec74989dcc54d2f2ea5621f611f3c45db1e7dff2f408476014d82beb2029" },
+        { "path": "vendor/duckdb/duckdb-mvp.wasm", "sha256": "ee5560145a3d3e0ffa6dce697be802c08842f139a594698eecc7c754f7ad5f05" }
+      ],
+      "required": true,
       "usedBy": ["authoring", "standalone"],
-      "status": "cdn-pinned"
+      "status": "vendored"
+    },
+    {
+      "name": "echarts",
+      "version": "6.0.0",
+      "path": "vendor/echarts/echarts.esm.min.js",
+      "license": "Apache-2.0",
+      "source": "https://www.npmjs.com/package/echarts/v/6.0.0",
+      "sha256": "b920493ac9036ac02fcb0de0a907ff9709e7bd1ff92b333c46c61b34589265ac",
+      "required": true,
+      "usedBy": ["authoring", "standalone"],
+      "status": "vendored"
     },
     {
       "name": "maplibre-gl",
       "version": "5.24.0",
-      "path": null,
+      "path": "vendor/maplibre/maplibre-gl.js",
       "license": "BSD-3-Clause",
-      "source": "https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/+esm",
-      "sha256": null,
+      "source": "https://www.npmjs.com/package/maplibre-gl/v/5.24.0",
+      "sha256": "45a9b07a9189ce56054c620a947ccf41e291e58c95e9b61533b740aaa65ee5cb",
+      "files": [
+        { "path": "vendor/maplibre/maplibre-gl.css", "sha256": "ab1e70d59ec40465bae7e7030da2f3ccf28133fd502e62bd598eefbadfd7a732" }
+      ],
+      "required": true,
       "usedBy": ["authoring", "standalone"],
-      "status": "cdn-pinned"
+      "status": "vendored"
+    },
+    {
+      "name": "topojson-client",
+      "version": "3.1.0",
+      "path": "vendor/topojson/topojson-client.min.js",
+      "license": "ISC",
+      "source": "https://www.npmjs.com/package/topojson-client/v/3.1.0",
+      "sha256": "25cd02ae486cc5063e0215a4e4cfb15de83700c87ac48bac4d57dc6aaf3ebb89",
+      "required": false,
+      "usedBy": ["maps"],
+      "status": "vendored"
+    },
+    {
+      "name": "jszip",
+      "version": "3.10.1",
+      "path": "vendor/zip/jszip.min.js",
+      "license": "MIT OR GPL-3.0-or-later",
+      "source": "https://www.npmjs.com/package/jszip/v/3.10.1",
+      "sha256": "acc7e41455a80765b5fd9c7ee1b8078a6d160bbbca455aeae854de65c947d59e",
+      "required": false,
+      "usedBy": ["portable-packages"],
+      "status": "vendored"
     }
   ]
 }

@@ -59,7 +59,8 @@ const harmlessConsole = [
 ];
 
 exports.test = base.extend({
-  page: async ({ page }, use, testInfo) => {
+  realRenderers: [false, { option: true }],
+  page: async ({ page, realRenderers }, use, testInfo) => {
     const failures = [];
     page.on("pageerror", (error) => failures.push(`pageerror: ${error.message}`));
     page.on("console", (message) => {
@@ -73,18 +74,24 @@ exports.test = base.extend({
       const local = url.startsWith("http://127.0.0.1:8080/");
       if (local) failures.push(`local request failed: ${url} ${request.failure()?.errorText || ""}`);
     });
-    await page.route("https://cdn.jsdelivr.net/npm/echarts@6.0.0/dist/echarts.esm.min.js", (route) => route.fulfill({
-      contentType: "application/javascript",
-      body: echartsMock,
-    }));
-    await page.route("https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/+esm", (route) => route.fulfill({
-      contentType: "application/javascript",
-      body: maplibreMock,
-    }));
-    await page.route("https://cdn.jsdelivr.net/npm/maplibre-gl@5.24.0/dist/maplibre-gl.css", (route) => route.fulfill({
-      contentType: "text/css",
-      body: ".maplibregl-canvas{display:block;width:100%;height:100%;}",
-    }));
+    if (!realRenderers) {
+      await page.route("**/vendor/echarts/echarts.esm.min.js", (route) => route.fulfill({
+        contentType: "application/javascript",
+        body: echartsMock,
+      }));
+      await page.route("**/vendor/maplibre/maplibre-gl.js", (route) => route.fulfill({
+        contentType: "application/javascript",
+        body: `${maplibreMock
+          .replaceAll("export const ", "const ")
+          .replaceAll("export class ", "class ")
+          .replace(/export default[^;]+;/, "")}
+globalThis.maplibregl = { version, Map, AttributionControl, ScaleControl };`,
+      }));
+      await page.route("**/vendor/maplibre/maplibre-gl.css", (route) => route.fulfill({
+        contentType: "text/css",
+        body: ".maplibregl-canvas{display:block;width:100%;height:100%;}",
+      }));
+    }
     // WebKit resolves jsDelivr's root-relative ESM imports against the document
     // after a redirected module response. Preserve the CDN origin explicitly.
     await page.route("http://127.0.0.1:8080/npm/**", async (route) => {

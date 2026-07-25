@@ -10,7 +10,7 @@ test("safe mode and hardening diagnostics expose canonical version", async ({ pa
   const debug = JSON.parse(await page.getByTestId("debug-report").textContent());
   expect(debug.appVersion).toBe("1.0.0-beta.2");
   expect(debug.startup.safeMode).toBe(true);
-  expect(debug.startup.vendoredDependencyStatus.validation.warnings.length).toBeGreaterThan(0);
+  expect(debug.startup.vendoredDependencyStatus.validation.warnings).toEqual([]);
 });
 
 test("support bundle is downloadable and redacts API keys", async ({ page }) => {

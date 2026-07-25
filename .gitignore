@@ -13,3 +13,8 @@ coverage/
 vendor/duckdb/*.wasm
 vendor/duckdb/*.worker.js
 vendor/echarts/*.min.js
+!vendor/duckdb/duckdb-eh.wasm
+!vendor/duckdb/duckdb-mvp.wasm
+!vendor/duckdb/duckdb-browser-eh.worker.js
+!vendor/duckdb/duckdb-browser-mvp.worker.js
+!vendor/echarts/echarts.esm.min.js

@@ -16,7 +16,7 @@ module.exports = {
   webServer: {
     command: "python3 -m http.server 8080",
     url: "http://127.0.0.1:8080",
-    reuseExistingServer: true,
+    reuseExistingServer: false,
     timeout: 30_000,
   },
   projects: [

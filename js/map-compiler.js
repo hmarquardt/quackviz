@@ -43,7 +43,7 @@ function compilePointMap(spec, dataset, themeTokens, warnings) {
         { id: "clusters", type: "circle", source: "quackviz_points", filter: ["has", "point_count"], paint: { "circle-color": themeTokens.accent || "#167c72", "circle-radius": ["step", ["get", "point_count"], 14, 25, 20, 100, 28], "circle-opacity": 0.78 } },
         { id: "cluster-count", type: "symbol", source: "quackviz_points", filter: ["has", "point_count"], layout: { "text-field": ["get", "point_count_abbreviated"], "text-size": 12 }, paint: { "text-color": "#ffffff" } },
       ] : []),
-      { id: "points", type: "circle", source: "quackviz_points", filter: cluster ? ["!", ["has", "point_count"]] : undefined, paint: { "circle-color": colorExpression, "circle-radius": circleRadius, "circle-opacity": 0.78, "circle-stroke-color": themeTokens.background || "#fff", "circle-stroke-width": 1 } },
+      { id: "points", type: "circle", source: "quackviz_points", ...(cluster ? { filter: ["!", ["has", "point_count"]] } : {}), paint: { "circle-color": colorExpression, "circle-radius": circleRadius, "circle-opacity": 0.78, "circle-stroke-color": themeTokens.background || "#fff", "circle-stroke-width": 1 } },
     ],
     legend: legendFor({ spec, categories, min, max, themeTokens }),
     tooltip: { enabled: spec.map.showTooltip, fields: tooltipFields(spec, dataset.columns || []) },
@@ -84,7 +84,7 @@ async function compileChoropleth(spec, dataset, themeTokens, warnings) {
 
 function basemapStyle(style, themeTokens) {
   const background = style === "dark" ? "#101418" : (themeTokens.background || "#ffffff");
-  return { version: 8, glyphs: "", sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": background } }] };
+  return { version: 8, sources: {}, layers: [{ id: "background", type: "background", paint: { "background-color": background } }] };
 }
 
 function tooltipFields(spec, columns) {

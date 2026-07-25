@@ -370,7 +370,16 @@ function bindEvents() {
   el.clearSql.addEventListener("click", () => { el.sqlEditor.value = ""; });
   el.copySql.addEventListener("click", () => copyText(el.sqlEditor.value).catch((error) => addError("ui", "copy-sql", error)));
   el.saveQuery.addEventListener("click", saveCurrentQuery);
-  for (const input of [el.chartType, el.xField, el.yField, el.vizTitle, el.smoothLine, el.showPoints, el.zoom, el.legend]) {
+  el.chartType.addEventListener("change", () => {
+    el.mapBuilderControls.hidden = !el.chartType.value.startsWith("map-");
+    setCurrentSpec(defaultVisualizationSpec({
+      queryId: state.workspace.active.queryId,
+      columns: state.currentResult?.columns || [],
+      type: el.chartType.value,
+    }));
+    rebuildVisualization();
+  });
+  for (const input of [el.xField, el.yField, el.vizTitle, el.smoothLine, el.showPoints, el.zoom, el.legend]) {
     input.addEventListener("input", rebuildVisualization);
     input.addEventListener("change", rebuildVisualization);
   }
@@ -2412,10 +2421,10 @@ async function runSelfTest() {
     const validation = validateVendorManifest(manifest);
     if (!validation.valid) throw new Error(validation.errors[0]?.message || "Vendor manifest invalid.");
   });
-  await step("Dependency hash validation reports non-vendored dependencies", async () => {
+  await step("Dependency manifest requires local dependencies", async () => {
     const manifest = await loadVendorManifest();
     const validation = validateVendorManifest(manifest, { requireLocal: true });
-    if (!validation.errors.some((error) => error.path.includes(".path"))) throw new Error("Non-vendored dependency status was not reported.");
+    if (!validation.valid) throw new Error(validation.errors[0]?.message || "Required local dependency validation failed.");
   });
   await step("Worker round trip", async () => {
     const response = await workerManager.run("echo", { ok: true });
@@ -2482,7 +2491,7 @@ async function runSelfTest() {
     URL.revokeObjectURL(url);
   });
   await step("Offline dependency resolution status", () => {
-    if (!state.startup.vendorStatus?.validation?.warnings?.length) throw new Error("Offline dependency limitation was not reported.");
+    if (!state.startup.vendorStatus?.validation?.valid) throw new Error("Local dependency resolution is not ready for offline use.");
   });
   await step("Verify standalone footer version", () => {
     if (!createStandaloneHtml(portablePackage).includes(`Runtime ${APP_VERSION}`)) throw new Error("Standalone footer version mismatch.");

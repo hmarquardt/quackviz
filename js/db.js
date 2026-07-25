@@ -1,4 +1,4 @@
-import * as duckdb from "https://cdn.jsdelivr.net/npm/@duckdb/duckdb-wasm@1.33.1-dev57.0/+esm";
+import * as duckdb from "../vendor/duckdb/duckdb-browser.mjs";
 import { DEPENDENCIES } from "./constants.js";
 import { escapeIdent, inferType, normalizeValue } from "./utils.js";
 
@@ -34,7 +34,16 @@ export async function initializeDatabase({ timeoutMs = 20000 } = {}) {
 }
 
 async function doInitialize() {
-  const bundles = duckdb.getJsDelivrBundles();
+  const bundles = {
+    mvp: {
+      mainModule: new URL("../vendor/duckdb/duckdb-mvp.wasm", import.meta.url).href,
+      mainWorker: new URL("../vendor/duckdb/duckdb-browser-mvp.worker.js", import.meta.url).href,
+    },
+    eh: {
+      mainModule: new URL("../vendor/duckdb/duckdb-eh.wasm", import.meta.url).href,
+      mainWorker: new URL("../vendor/duckdb/duckdb-browser-eh.worker.js", import.meta.url).href,
+    },
+  };
   const bundle = await duckdb.selectBundle(bundles);
   status.selectedBundle = `${bundle.mainModule}`;
   workerUrl = URL.createObjectURL(new Blob([`importScripts("${bundle.mainWorker}");`], { type: "text/javascript" }));

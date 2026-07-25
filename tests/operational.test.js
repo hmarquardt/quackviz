@@ -66,13 +66,13 @@ export const operationalTests = [
     const report = observeMemory({ cacheEntries: 51 });
     assert(report.warnings.length >= 1, "memory warning missing");
   } },
-  { name: "vendor: manifest validates current pinned versions", run: () => {
+  { name: "vendor: manifest validates local pinned versions", run: () => {
     const validation = validateVendorManifest(expectedVendorManifest());
-    assert(validation.valid && validation.warnings.length >= 1, "vendor manifest status wrong");
+    assert(validation.valid && validation.warnings.length === 0, "vendor manifest status wrong");
   } },
-  { name: "vendor: release-local requirement fails honestly", run: () => {
+  { name: "vendor: release-local requirement passes", run: () => {
     const validation = validateVendorManifest(expectedVendorManifest(), { requireLocal: true });
-    assert(!validation.valid && validation.errors.some((error) => error.path.includes(".path")), "non-vendored dependency not reported");
+    assert(validation.valid && validation.errors.length === 0, "local dependency requirement failed");
   } },
   { name: "workspace-validation: valid workspace", run: () => {
     assert(validateWorkspaceIntegrity(fixtureWorkspace()).valid, "valid workspace rejected");

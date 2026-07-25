@@ -111,7 +111,7 @@ Integrity hashes detect changed files but do not verify who created the package.
 
 ## Browser Requirements
 
-QuackViz requires modern browser support for ES modules, WebAssembly, Web Workers, IndexedDB, Web Crypto, File API, Blob URLs, Canvas, and WebGL for maps. Chromium is the primary release browser. Firefox and WebKit smoke coverage may expose browser-specific limitations.
+QuackViz requires modern browser support for ES modules, WebAssembly, Web Workers, IndexedDB, Web Crypto, File API, Blob URLs, Canvas, and WebGL for maps. Chromium is the primary real-renderer release browser. Firefox and WebKit run the coordinated application suite with browser-specific limitations documented separately.
 
 ## Running Tests
 
@@ -159,20 +159,24 @@ Format contracts and module boundaries remain versioned in source constants and 
 - Apache ECharts `6.0.0`
 - DuckDB-WASM `1.33.1-dev57.0`
 - MapLibre GL JS `5.24.0`
+- TopoJSON Client `3.1.0`
+- JSZip `3.10.1`
+
+Required runtime files are vendored under `vendor/`; normal startup does not use a public runtime CDN.
 
 ## Known Limitations
 
 - Browser memory limits apply to large files.
 - Local DuckDB tables are memory-only after reload and may need re-import.
 - URL import depends on CORS.
-- Runtime dependencies are still pinned CDN dependencies in the authoring app; the vendor manifest reports this honestly.
+- Remote AI requests, URL imports, and remote map tiles still require network access.
 - AI requires an external OpenRouter account and explicit configuration.
 - No remote databases, streaming, authentication, collaboration, cloud synchronization, or server-backed publishing are implemented.
-- Automated axe and full visual-regression baselines are not yet complete.
+- Automated axe checks release-gate serious and critical findings; independent WCAG conformance has not been established.
 
 ## Roadmap
 
-Near-term focus should stay on beta hardening: documentation accuracy, accessibility validation, visual-regression baselines, local dependency vendoring, and cross-browser behavior.
+Near-term focus should stay on beta hardening: Safari validation, visual-regression baselines, and cross-browser renderer behavior.
 
 ## License
 

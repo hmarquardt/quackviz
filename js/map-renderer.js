@@ -16,10 +16,23 @@ let status = {
 export async function loadMapLibre() {
   if (!maplibreModule) {
     await ensureCss();
-    maplibreModule = await import(DEPENDENCIES.maplibre.url);
-    status.maplibreRuntimeVersion = maplibreModule.version || maplibreModule.default?.version || "unknown";
+    await loadMapLibreScript();
+    maplibreModule = globalThis.maplibregl;
+    status.maplibreRuntimeVersion = maplibreModule.version || maplibreModule.default?.version || DEPENDENCIES.maplibre.version;
   }
   return maplibreModule.default || maplibreModule;
+}
+
+export function getMapInstanceDiagnostics(instanceId) {
+  const map = instances.get(instanceId)?.map;
+  if (!map) return null;
+  const style = map.getStyle?.();
+  return {
+    runtimeVersion: status.maplibreRuntimeVersion,
+    sourceIds: Object.keys(style?.sources || {}),
+    layerIds: (style?.layers || []).map((layer) => layer.id),
+    removed: Boolean(map._removed),
+  };
 }
 
 export function getMapRendererStatus() {
@@ -166,11 +179,30 @@ function blankStyle() {
 }
 
 async function ensureCss() {
-  if (typeof document === "undefined" || document.querySelector(`link[href="${DEPENDENCIES.maplibre.cssUrl}"]`)) return;
+  const href = new URL(DEPENDENCIES.maplibre.cssUrl, import.meta.url).href;
+  if (typeof document === "undefined" || document.querySelector(`link[href="${href}"]`)) return;
   const link = document.createElement("link");
   link.rel = "stylesheet";
-  link.href = DEPENDENCIES.maplibre.cssUrl;
+  link.href = href;
   document.head.appendChild(link);
+}
+
+function loadMapLibreScript() {
+  if (globalThis.maplibregl) return Promise.resolve();
+  const src = new URL(DEPENDENCIES.maplibre.url, import.meta.url).href;
+  return new Promise((resolve, reject) => {
+    const existing = document.querySelector(`script[src="${src}"]`);
+    if (existing) {
+      existing.addEventListener("load", resolve, { once: true });
+      existing.addEventListener("error", () => reject(new Error("Local MapLibre dependency failed to load.")), { once: true });
+      return;
+    }
+    const script = document.createElement("script");
+    script.src = src;
+    script.onload = resolve;
+    script.onerror = () => reject(new Error("Local MapLibre dependency failed to load."));
+    document.head.appendChild(script);
+  });
 }
 
 function escapeHtml(value) {

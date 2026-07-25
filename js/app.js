@@ -54,6 +54,7 @@ import { compileVisualizationSpec } from "./viz-compiler.js";
 import { disposeChartInstance, renderVisualization, showEmpty } from "./viz-renderer.js";
 import { copyText, escapeIdent, nowIso, uid } from "./utils.js";
 import { elements, getThemeTokens, initializeStaticControls, renderApp, renderSelfTest, seedDefaultSql, selectTab } from "./ui.js";
+import { HELP_TOPICS, ONBOARDING_STORAGE_KEYS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "./product.js";
 
 let saveSuppressed = false;
 let currentAiAbortController = null;
@@ -140,6 +141,7 @@ async function boot() {
   document.body.dataset.appState = state.startup.capabilities?.missingRequired?.length ? "error" : state.startup.safeMode ? "degraded" : "ready";
   document.body.dataset.workspaceState = state.startup.safeMode ? "safe-mode" : "loaded";
   notify();
+  maybeShowWelcome();
   initializeDatabase({ timeoutMs: TASK_TIMEOUTS.duckdbInitMs }).then((status) => {
     state.dbStatus = status;
     window.__QUACKVIZ_E2E__.dbReady = status.connection === "connected";
@@ -155,9 +157,173 @@ function updateE2EReadiness() {
   document.documentElement.dataset.renderReady = window.__QUACKVIZ_E2E__.renderReady ? "true" : "false";
 }
 
+function maybeShowWelcome() {
+  const dismissed = localStorage.getItem(ONBOARDING_STORAGE_KEYS.welcomeDismissed) === "true";
+  const hasWork = state.workspace.dataSources.length || state.workspace.queries.length || state.workspace.visualizations.length;
+  if (!dismissed && !hasWork && !state.startup.safeMode) {
+    setTimeout(() => openDialog(elements().welcomeDialog), 0);
+  }
+}
+
+function dismissWelcome() {
+  localStorage.setItem(ONBOARDING_STORAGE_KEYS.welcomeDismissed, "true");
+  closeDialog(elements().welcomeDialog);
+  notify();
+}
+
+function openDialog(dialog) {
+  if (!dialog) return;
+  state.product.lastFocusedElement = document.activeElement;
+  if (!dialog.open) dialog.showModal();
+}
+
+function closeDialog(dialog) {
+  if (dialog?.open) dialog.close();
+}
+
+function restoreDialogFocus() {
+  const target = state.product.lastFocusedElement;
+  if (target && typeof target.focus === "function" && document.contains(target)) target.focus();
+  state.product.lastFocusedElement = null;
+}
+
+function openCommandPalette() {
+  state.product.commandPaletteOpen = true;
+  state.product.commandQuery = "";
+  notify();
+  openDialog(elements().commandPalette);
+  elements().commandInput.focus();
+}
+
+function handleGlobalShortcuts(event) {
+  const key = event.key.toLowerCase();
+  const mod = event.ctrlKey || event.metaKey;
+  if (mod && key === "k") {
+    event.preventDefault();
+    openCommandPalette();
+  } else if (mod && key === "o") {
+    event.preventDefault();
+    selectTab("data");
+    elements().dataFileInput.focus();
+  } else if (event.key === "?" && (!["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName) || !document.activeElement.closest("dialog[open]"))) {
+    event.preventDefault();
+    openDialog(elements().helpDialog);
+  } else if (event.key === "Escape") {
+    for (const dialog of [elements().commandPalette, elements().helpDialog, elements().aboutDialog, elements().welcomeDialog]) closeDialog(dialog);
+  }
+}
+
+function handleProductAction(event) {
+  const target = event.target.closest("[data-product-action]");
+  if (!target) return;
+  const action = target.dataset.productAction;
+  if (action === "workflow-step") {
+    selectTab(target.dataset.tab || "data");
+  } else if (action === "dismiss-checklist") {
+    localStorage.setItem(ONBOARDING_STORAGE_KEYS.checklistDismissed, "true");
+    notify();
+  } else if (action === "show-welcome") {
+    localStorage.removeItem(ONBOARDING_STORAGE_KEYS.welcomeDismissed);
+    openDialog(elements().welcomeDialog);
+  } else if (action === "show-help") {
+    openDialog(elements().helpDialog);
+  } else if (action === "show-about") {
+    openDialog(elements().aboutDialog);
+  } else if (action === "report-problem") {
+    copyText(JSON.stringify({ appVersion: APP_VERSION, buildDate: BUILD_DATE, workspaceId: state.workspace.id, lastError: state.errors[0] || null }, null, 2)).catch((error) => addError("ui", "copy-feedback", error));
+    window.open("https://github.com/hmarquardt/quackviz/issues/new", "_blank", "noopener,noreferrer");
+  } else if (action === "open-recent") {
+    openRecentItem(target.dataset.type, target.dataset.id);
+  } else if (action === "starter-query") {
+    applyStarterQuery(target.dataset.starter);
+  } else if (action === "command-result") {
+    activateCommandResult(target.dataset.commandId);
+  } else if (action === "help-topic") {
+    state.product.activeHelpTopicId = target.dataset.topicId || "getting-started";
+    notify();
+  }
+}
+
+function openRecentItem(type, id) {
+  if (type === "Data source") {
+    setActive({ dataSourceId: id });
+    selectTab("data");
+  } else if (type === "Query") {
+    const query = state.workspace.queries.find((item) => item.id === id);
+    if (query) {
+      elements().queryName.value = query.name;
+      elements().sqlEditor.value = query.sql;
+      setActive({ queryId: id });
+      selectTab("sql");
+    }
+  } else if (type === "Visualization") {
+    setActive({ visualizationId: id });
+    selectTab("visualize");
+  } else if (type === "Dashboard") {
+    setActive({ dashboardId: id });
+    selectTab("dashboard");
+  } else if (type === "Report") {
+    updateWorkspace((workspace) => { workspace.active.reportId = id; });
+    selectTab("report");
+  }
+}
+
+function activateCommandResult(commandId) {
+  const item = searchCommandItems(buildCommandItems(state.workspace), state.product.commandQuery || "", 30).find((entry) => entry.id === commandId)
+    || buildCommandItems(state.workspace).find((entry) => entry.id === commandId);
+  closeDialog(elements().commandPalette);
+  if (!item) return;
+  if (item.action === "help" || item.action === "help-topic") {
+    state.product.activeHelpTopicId = item.topicId || "getting-started";
+    openDialog(elements().helpDialog);
+    notify();
+  } else if (item.action === "about") {
+    openDialog(elements().aboutDialog);
+  } else if (item.artifactId) {
+    openRecentItem(item.type, item.artifactId);
+  } else if (item.tab) {
+    selectTab(item.tab);
+  }
+}
+
+function applyStarterQuery(kind) {
+  const source = state.workspace.dataSources.find((item) => item.id === state.workspace.active.dataSourceId);
+  if (!source) return;
+  const table = escapeIdent(source.tableName);
+  const columns = source.columns || [];
+  const firstNumeric = columns.find((column) => /INT|DOUBLE|DECIMAL|FLOAT|NUMBER|BIGINT/i.test(column.duckType));
+  const sql = {
+    preview: `SELECT *\nFROM ${table}\nLIMIT 50;`,
+    count: `SELECT COUNT(*) AS row_count\nFROM ${table};`,
+    nulls: `SELECT ${columns.map((column) => `SUM(CASE WHEN ${escapeIdent(column.name)} IS NULL THEN 1 ELSE 0 END) AS ${escapeIdent(`${column.name}_nulls`)}`).join(",\n       ")}\nFROM ${table};`,
+    summaries: firstNumeric ? `SELECT MIN(${escapeIdent(firstNumeric.name)}) AS min_value,\n       MAX(${escapeIdent(firstNumeric.name)}) AS max_value,\n       AVG(${escapeIdent(firstNumeric.name)}) AS avg_value\nFROM ${table};` : `SELECT COUNT(*) AS row_count\nFROM ${table};`,
+  }[kind] || `SELECT *\nFROM ${table}\nLIMIT 50;`;
+  elements().sqlEditor.value = sql;
+  elements().queryName.value = `${source.name || source.tableName} ${kind}`;
+  selectTab("sql");
+  addStatus("sql", "starter-query", "Starter query inserted. Review it, then run.");
+}
+
 function bindEvents() {
   const el = elements();
   document.querySelectorAll(".tab").forEach((button) => button.addEventListener("click", () => selectTab(button.dataset.tab)));
+  document.addEventListener("click", handleProductAction);
+  document.addEventListener("keydown", handleGlobalShortcuts);
+  el.openCommandPalette.addEventListener("click", openCommandPalette);
+  el.openHelp.addEventListener("click", () => openDialog(el.helpDialog));
+  el.openAbout.addEventListener("click", () => openDialog(el.aboutDialog));
+  el.welcomeAddData.addEventListener("click", () => { dismissWelcome(); selectTab("data"); elements().dataFileInput.focus(); });
+  el.welcomeFixture.addEventListener("click", () => { dismissWelcome(); selectTab("debug"); elements().loadSample.focus(); });
+  el.welcomePackage.addEventListener("click", () => { dismissWelcome(); selectTab("debug"); elements().exportWorkspacePackage.focus(); });
+  el.welcomeDismiss.addEventListener("click", dismissWelcome);
+  el.commandInput.addEventListener("input", () => { state.product.commandQuery = el.commandInput.value; notify(); });
+  el.helpSearch.addEventListener("input", () => notify());
+  el.closeHelp.addEventListener("click", () => closeDialog(el.helpDialog));
+  el.closeAbout.addEventListener("click", () => closeDialog(el.aboutDialog));
+  el.copyAboutInfo.addEventListener("click", () => copyText(JSON.stringify({ appVersion: APP_VERSION, buildDate: BUILD_DATE, url: window.location.href, workspaceId: state.workspace.id }, null, 2)).catch((error) => addError("ui", "copy-about", error)));
+  for (const dialog of [el.welcomeDialog, el.commandPalette, el.helpDialog, el.aboutDialog]) {
+    dialog.addEventListener("close", restoreDialogFocus);
+  }
   el.themeSelect.addEventListener("change", () => {
     updateWorkspace((workspace) => { workspace.settings.theme = el.themeSelect.value; });
     saveThemePreference(el.themeSelect.value);
@@ -2320,6 +2486,63 @@ async function runSelfTest() {
   });
   await step("Verify standalone footer version", () => {
     if (!createStandaloneHtml(portablePackage).includes(`Runtime ${APP_VERSION}`)) throw new Error("Standalone footer version mismatch.");
+  });
+  await step("Detect first-run state", () => {
+    const onboarding = createOnboardingState({ workspace: createWorkspace() });
+    if (!onboarding.firstRun || onboarding.steps[0].complete) throw new Error("First-run state was not detected.");
+  });
+  await step("Complete onboarding step", () => {
+    const workspace = createWorkspace();
+    workspace.dataSources.push({ id: "source_onboarding", name: "Orders", tableName: "orders", columns: [{ name: "id", duckType: "INTEGER" }] });
+    const onboarding = createOnboardingState({ workspace });
+    if (!onboarding.steps.find((item) => item.id === "add-data")?.complete) throw new Error("Onboarding step did not complete.");
+  });
+  await step("Persist onboarding dismissal", () => {
+    localStorage.setItem(ONBOARDING_STORAGE_KEYS.welcomeDismissed, "true");
+    if (localStorage.getItem(ONBOARDING_STORAGE_KEYS.welcomeDismissed) !== "true") throw new Error("Onboarding dismissal was not stored.");
+  });
+  await step("Generate starter query", () => {
+    const source = { id: "source_starter", name: "Starter", tableName: "starter", columns: [{ name: "value", duckType: "DOUBLE" }] };
+    const query = `SELECT COUNT(*) AS row_count\nFROM ${escapeIdent(source.tableName)};`;
+    if (!query.includes("row_count")) throw new Error("Starter query missing row count.");
+  });
+  await step("Generate chart recommendation", () => {
+    const items = buildCommandItems(state.workspace);
+    if (!items.some((item) => item.label === "Add data")) throw new Error("Product commands missing Add data.");
+  });
+  await step("Create recent item", () => {
+    const recent = recentItems(state.workspace, 3);
+    if (!Array.isArray(recent)) throw new Error("Recent items failed.");
+  });
+  await step("Search recent item", () => {
+    const result = searchCommandItems(buildCommandItems(state.workspace), "data", 5);
+    if (!result.length) throw new Error("Command search failed.");
+  });
+  await step("Open command palette metadata", () => {
+    const commands = buildCommandItems(state.workspace);
+    if (!commands.some((item) => item.id === "cmd-help")) throw new Error("Command palette help command missing.");
+  });
+  await step("Resolve command", () => {
+    const command = searchCommandItems(buildCommandItems(state.workspace), "help", 1)[0];
+    if (!command || !["Command", "Help"].includes(command.type)) throw new Error("Command resolution failed.");
+  });
+  await step("Load local help topic", () => {
+    if (!HELP_TOPICS.find((topic) => topic.id === "importing-data")?.path.startsWith("docs/")) throw new Error("Local help topic missing.");
+  });
+  await step("Validate local documentation link", () => {
+    if (!HELP_TOPICS.every((topic) => topic.path.startsWith("docs/"))) throw new Error("Help topic path is not local.");
+  });
+  await step("Create accessible toast", () => {
+    if (elements().toastRegion.getAttribute("aria-live") !== "polite") throw new Error("Toast live region missing.");
+  });
+  await step("Restore dialog focus support", () => {
+    if (typeof elements().welcomeDialog.showModal !== "function") throw new Error("Dialog support missing.");
+  });
+  await step("Validate About metadata", () => {
+    if (aboutMetadata().appVersion !== APP_VERSION || aboutMetadata().buildDate !== BUILD_DATE) throw new Error("About metadata mismatch.");
+  });
+  await step("Verify beta status", () => {
+    if (aboutMetadata().releaseChannel !== "beta") throw new Error("Beta status missing.");
   });
   await step("Footer version matches APP_VERSION", () => {
     if (!elements().footerVersion.textContent.includes(APP_VERSION)) throw new Error("Footer version mismatch.");

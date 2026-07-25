@@ -53,6 +53,11 @@ button:hover { border-color: var(--accent); }
 button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
 button.danger { color: var(--danger); }
 button.wide { width: 100%; }
+button.ghost-button {
+  min-height: 28px;
+  padding: 3px 7px;
+  background: transparent;
+}
 button:disabled { opacity: .55; cursor: not-allowed; }
 
 .app-shell {
@@ -98,6 +103,10 @@ body:not([data-active-tab="visualize"]) .right-pane {
 
 .brand, .section-head { justify-content: space-between; }
 .brand { padding: 14px; border-bottom: 1px solid var(--border); }
+.brand {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto auto;
+}
 .brand-mark {
   width: 28px;
   height: 28px;
@@ -110,6 +119,18 @@ h1 { font-size: 20px; letter-spacing: 0; }
 h2 { font-size: 12px; text-transform: uppercase; color: var(--muted); letter-spacing: .04em; }
 h3 { font-size: 14px; }
 small, .status, .muted { color: var(--muted); }
+.beta-badge {
+  display: inline-flex;
+  align-items: center;
+  min-height: 20px;
+  padding: 1px 6px;
+  border: 1px solid var(--accent);
+  border-radius: 999px;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  vertical-align: middle;
+}
 
 .panel { padding: 12px; border-bottom: 1px solid var(--border); }
 .panel > * + * { margin-top: 10px; }
@@ -190,6 +211,39 @@ input[type="checkbox"] { width: auto; min-height: auto; }
 
 .tab.active { background: var(--accent); color: #fff; }
 
+.workflow-checklist {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--border);
+  background: var(--panel);
+}
+
+.workflow-checklist:empty { display: none; }
+.workflow-checklist > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+.workflow-checklist ol {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.workflow-checklist li.complete button {
+  color: var(--accent);
+}
+.link-button {
+  min-height: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+}
+
 .tab-panel {
   display: none;
   height: calc(100vh - 49px);
@@ -198,6 +252,10 @@ input[type="checkbox"] { width: auto; min-height: auto; }
 }
 
 .tab-panel.active { display: block; }
+
+.starter-queries {
+  margin: 8px 0;
+}
 
 .import-panel {
   display: grid;
@@ -388,6 +446,91 @@ th {
   background: var(--panel-2);
 }
 
+.toast-region {
+  position: fixed;
+  right: 16px;
+  bottom: 40px;
+  z-index: 20;
+  display: grid;
+  gap: 8px;
+  max-width: min(380px, calc(100vw - 32px));
+  pointer-events: none;
+}
+
+.toast {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px color-mix(in srgb, #000 18%, transparent);
+  padding: 10px 12px;
+}
+.toast.error { border-color: var(--danger); }
+
+.product-dialog {
+  width: min(760px, calc(100vw - 32px));
+  max-height: min(760px, calc(100vh - 48px));
+  overflow: auto;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--panel);
+  color: var(--text);
+  padding: 18px;
+}
+
+.product-dialog::backdrop {
+  background: color-mix(in srgb, #000 46%, transparent);
+}
+
+.product-dialog > * + * {
+  margin-top: 12px;
+}
+
+.command-palette {
+  width: min(680px, calc(100vw - 32px));
+}
+
+.command-results {
+  display: grid;
+  gap: 6px;
+}
+
+.command-result {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+}
+
+.help-layout {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.help-content {
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px;
+  background: var(--panel-2);
+}
+
+.help-content ul,
+.product-dialog ul {
+  margin: 0;
+  padding-left: 20px;
+}
+
+.metadata-list {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr);
+  gap: 8px 12px;
+}
+
+.metadata-list dt {
+  color: var(--muted);
+}
+
 .dashboard-toolbar {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, max-content));
@@ -539,6 +682,13 @@ th {
 .test-fail { color: var(--danger); }
 
 @media (max-width: 900px) {
+  .brand {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  .brand .ghost-button,
+  .brand .theme-select {
+    grid-column: span 1;
+  }
   .app-shell {
     display: block;
     height: auto;
@@ -561,5 +711,13 @@ th {
   .pane, .tab-panel {
     height: auto;
     min-height: 0;
+  }
+  .help-layout {
+    grid-template-columns: 1fr;
+  }
+  .toast-region {
+    position: static;
+    max-width: none;
+    padding: 8px;
   }
 }

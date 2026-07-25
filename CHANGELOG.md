@@ -1,5 +1,31 @@
 # Changelog
 
+## 1.0.0-beta.1 - 2026-07-25
+
+### Added
+
+- Public-beta product shell with beta badge, welcome dialog, guided workflow checklist, recent-work shortcuts, command palette, About dialog, and offline in-app help.
+- Starter SQL query shortcuts for selected data sources.
+- Product-focused browser tests for onboarding state, recent items, command search, help topics, and About metadata.
+- Local documentation structure under `docs/` and a public-beta checklist.
+
+### Changed
+
+- Top-level navigation now uses product-stage labels: Data, Analyze, Visualize, Dashboards, Reports, AI, and More.
+- Debug, recovery, fixture loading, package tooling, templates, and extension validation are grouped under More instead of competing with the primary workflow.
+- AI settings now introduce privacy basics before exposing advanced context and generation controls.
+- README is reorganized around user workflows instead of milestone history.
+
+### Fixed
+
+- First-run users now see a clear path from adding data to analysis, visualization, dashboards/reports, and export.
+- Footer and metadata now use the beta application version consistently.
+
+### Known Limitations
+
+- This is a beta release: browser memory limits, URL CORS, local-file re-import, pinned CDN runtime dependencies, and browser differences remain visible limitations.
+- Visual regression baselines and automated axe checks are not yet fully integrated.
+
 ## 0.10.0 - 2026-07-24
 
 ### Added

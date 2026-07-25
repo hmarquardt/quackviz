@@ -1,8 +1,8 @@
 {
   "format": "quackviz-vendor-manifest",
   "formatVersion": 1,
-  "appVersion": "0.10.0",
-  "buildDate": "2026-07-24",
+  "appVersion": "1.0.0-beta.1",
+  "buildDate": "2026-07-25",
   "dependencies": [
     {
       "name": "echarts",

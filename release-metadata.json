@@ -1,7 +1,7 @@
 {
   "app": "QuackViz",
-  "version": "0.10.0",
-  "buildDate": "2026-07-24",
+  "version": "1.0.0-beta.1",
+  "buildDate": "2026-07-25",
   "workspaceSchemaVersion": 1,
   "visualizationSpecVersion": 1,
   "mapSpecVersion": 1,

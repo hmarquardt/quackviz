@@ -1,4 +1,4 @@
-import { AI_CONTRACT_VERSION, APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL, DEPENDENCIES, IMPORT_FORMAT_LABELS, MAP_SPEC_VERSION, SUPPORTED_IMPORT_FORMATS, VIZ_SPEC_VERSION, WORKSPACE_SCHEMA_VERSION } from "./constants.js";
+import { AI_CONTRACT_VERSION, APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL, DEPENDENCIES, IMPORT_FORMAT_LABELS, MAP_SPEC_VERSION, RELEASE_CHANNEL, SUPPORTED_IMPORT_FORMATS, VIZ_SPEC_VERSION, WORKSPACE_SCHEMA_VERSION } from "./constants.js";
 import { AI_ACTIONS } from "./ai-contracts.js";
 import { getDatabaseStatus } from "./db.js";
 import { getDashboardRunnerStatus } from "./dashboard-runner.js";
@@ -10,12 +10,18 @@ import { isMapSpec } from "./map-spec.js";
 import { getRendererStatus } from "./viz-renderer.js";
 import { chartTypes, defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
 import { html, safeString, truncate } from "./utils.js";
+import { HELP_TOPICS, KEYBOARD_SHORTCUTS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "./product.js";
 
 const $ = (id) => document.getElementById(id);
 
 export function elements() {
   return {
     themeSelect: $("themeSelect"),
+    openCommandPalette: $("openCommandPalette"),
+    openHelp: $("openHelp"),
+    openAbout: $("openAbout"),
+    workflowChecklist: $("workflowChecklist"),
+    recentWork: $("recentWork"),
     loadSample: $("loadSample"),
     dataFileInput: $("dataFileInput"),
     dataDropZone: $("dataDropZone"),
@@ -40,6 +46,7 @@ export function elements() {
     saveQuery: $("saveQuery"),
     runSql: $("runSql"),
     queryName: $("queryName"),
+    starterQueries: $("starterQueries"),
     sqlEditor: $("sqlEditor"),
     queryRuntime: $("queryRuntime"),
     queryRows: $("queryRows"),
@@ -142,6 +149,24 @@ export function elements() {
     printReport: $("printReport"),
     copyReportMetadata: $("copyReportMetadata"),
     footerVersion: $("footerVersion"),
+    toastRegion: $("toastRegion"),
+    welcomeDialog: $("welcomeDialog"),
+    welcomeAddData: $("welcomeAddData"),
+    welcomeFixture: $("welcomeFixture"),
+    welcomePackage: $("welcomePackage"),
+    welcomeDismiss: $("welcomeDismiss"),
+    commandPalette: $("commandPalette"),
+    commandInput: $("commandInput"),
+    commandResults: $("commandResults"),
+    helpDialog: $("helpDialog"),
+    helpSearch: $("helpSearch"),
+    helpTopicList: $("helpTopicList"),
+    helpContent: $("helpContent"),
+    closeHelp: $("closeHelp"),
+    aboutDialog: $("aboutDialog"),
+    aboutContent: $("aboutContent"),
+    copyAboutInfo: $("copyAboutInfo"),
+    closeAbout: $("closeAbout"),
     aiStatus: $("aiStatus"),
     aiEnabled: $("aiEnabled"),
     openRouterKey: $("openRouterKey"),
@@ -188,6 +213,7 @@ export function selectTab(name) {
 export function renderApp(state) {
   renderSources(state);
   renderImportWorkspace(state);
+  renderProductShell(state);
   renderSavedQueries(state);
   renderSavedVisualizations(state);
   renderSchema(state);
@@ -198,6 +224,91 @@ export function renderApp(state) {
   renderReport(state);
   renderAi(state);
   renderDebug(state);
+}
+
+function renderProductShell(state) {
+  const el = elements();
+  const dismissedWelcome = localStorage.getItem("quackviz.onboarding.welcomeDismissed") === "true";
+  const dismissedChecklist = localStorage.getItem("quackviz.onboarding.checklistDismissed") === "true";
+  const onboarding = createOnboardingState({ workspace: state.workspace, welcomeDismissed: dismissedWelcome, checklistDismissed: dismissedChecklist });
+  state.product.onboarding = onboarding;
+  renderWorkflowChecklist(el.workflowChecklist, onboarding);
+  renderRecentWork(el.recentWork, state.workspace);
+  renderCommandPalette(state);
+  renderHelp(state);
+  renderAbout();
+  renderToasts(el.toastRegion, state);
+}
+
+function renderWorkflowChecklist(container, onboarding) {
+  if (onboarding.checklistDismissed) {
+    container.innerHTML = "";
+    return;
+  }
+  const completeCount = onboarding.steps.filter((step) => step.complete).length;
+  container.innerHTML = `<div>
+    <strong>Primary workflow</strong>
+    <span>${completeCount}/${onboarding.steps.length} complete</span>
+  </div>
+  <ol>${onboarding.steps.map((step) => `<li class="${step.complete ? "complete" : ""}">
+    <button data-product-action="workflow-step" data-tab="${html(step.tab)}">${step.complete ? "Done" : "Next"}: ${html(step.label)}</button>
+  </li>`).join("")}</ol>
+  <button class="link-button" data-product-action="dismiss-checklist">Hide checklist</button>`;
+}
+
+function renderRecentWork(container, workspace) {
+  const items = recentItems(workspace, 6);
+  if (!items.length) {
+    container.innerHTML = `<div class="empty-state">Recent data, queries, charts, dashboards, and reports appear here.</div>`;
+    return;
+  }
+  container.innerHTML = items.map((item) => `<button class="object-item" data-product-action="open-recent" data-type="${html(item.type)}" data-id="${html(item.id)}">
+    <strong>${html(item.name)}</strong>
+    <small>${html(item.type)} · ${html(item.updatedAt || "not saved")}</small>
+  </button>`).join("");
+}
+
+function renderCommandPalette(state) {
+  const el = elements();
+  const query = state.product.commandQuery || "";
+  if (document.activeElement !== el.commandInput) el.commandInput.value = query;
+  const results = searchCommandItems(buildCommandItems(state.workspace), query, 10);
+  el.commandResults.innerHTML = results.length ? results.map((item) => `<button class="command-result" data-product-action="command-result" data-command-id="${html(item.id)}">
+    <strong>${html(item.label)}</strong>
+    <small>${html(item.type)}</small>
+  </button>`).join("") : `<div class="empty-state">No matching commands or saved work.</div>`;
+}
+
+function renderHelp(state) {
+  const el = elements();
+  const query = String(el.helpSearch?.value || "").toLowerCase();
+  const topics = HELP_TOPICS.filter((topic) => !query || topic.title.toLowerCase().includes(query) || topic.keywords.join(" ").toLowerCase().includes(query));
+  const activeId = topics.some((topic) => topic.id === state.product.activeHelpTopicId)
+    ? state.product.activeHelpTopicId
+    : topics[0]?.id || "getting-started";
+  el.helpTopicList.innerHTML = topics.map((topic) => `<button class="object-item${topic.id === activeId ? " active" : ""}" data-product-action="help-topic" data-topic-id="${html(topic.id)}">
+    <strong>${html(topic.title)}</strong>
+    <small>${html(topic.path)}</small>
+  </button>`).join("");
+  const active = HELP_TOPICS.find((topic) => topic.id === activeId) || HELP_TOPICS[0];
+  el.helpContent.innerHTML = helpContent(active);
+}
+
+function renderAbout() {
+  const meta = aboutMetadata();
+  elements().aboutContent.innerHTML = `<dl class="metadata-list">
+    <dt>Product</dt><dd>${html(meta.product)} ${html(meta.releaseChannel)}</dd>
+    <dt>Version</dt><dd>${html(meta.appVersion)}</dd>
+    <dt>Build date</dt><dd>${html(meta.buildDate)}</dd>
+    <dt>Runtime</dt><dd>Static browser app using DuckDB-WASM, Apache ECharts, and MapLibre GL JS.</dd>
+    <dt>Privacy</dt><dd>Workspaces are local. QuackViz does not send usage analytics or upload data automatically.</dd>
+    <dt>License</dt><dd>See repository license and dependency license metadata.</dd>
+  </dl>`;
+}
+
+function renderToasts(container, state) {
+  const messages = [...state.errors.slice(0, 2).map((error) => ({ level: "error", message: `${error.source}: ${error.message}` })), ...state.statuses.slice(0, 2).map((status) => ({ level: "info", message: status.message }))];
+  container.innerHTML = messages.map((item) => `<div class="toast ${html(item.level)}">${html(item.message)}</div>`).join("");
 }
 
 function renderSources(state) {
@@ -235,6 +346,21 @@ function renderImportWorkspace(state) {
   const error = status.error ? `<p class="error-text">${html(status.error)}</p>` : "";
   el.dataImportStatus.innerHTML = `<strong>${html(message)}</strong><p>${html(selected)} · ${html(detected)}${progress}</p>${warning}${error}`;
   el.dataImportConfirm.disabled = !dataImport.pendingFiles?.length && dataImport.source !== "url";
+  renderStarterQueries(state);
+}
+
+function renderStarterQueries(state) {
+  const active = state.workspace.dataSources.find((source) => source.id === state.workspace.active.dataSourceId);
+  if (!active) {
+    elements().starterQueries.innerHTML = `<div class="empty-state">Load data to see starter queries.</div>`;
+    return;
+  }
+  elements().starterQueries.innerHTML = `<div class="button-row wrap">
+    <button data-product-action="starter-query" data-starter="preview">Preview rows</button>
+    <button data-product-action="starter-query" data-starter="count">Row count</button>
+    <button data-product-action="starter-query" data-starter="nulls">Null counts</button>
+    <button data-product-action="starter-query" data-starter="summaries">Numeric summaries</button>
+  </div>`;
 }
 
 function renderSavedQueries(state) {
@@ -593,6 +719,26 @@ function formatBytes(bytes) {
   if (value < 1024) return `${value} B`;
   if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
   return `${(value / 1024 / 1024).toFixed(1)} MB`;
+}
+
+function helpContent(topic) {
+  const commonFooter = `<p><a href="${html(topic.path)}" target="_blank" rel="noreferrer">Open local documentation file</a></p>`;
+  const content = {
+    "getting-started": `<h3>Getting started</h3><p>Use the main workflow: add data, inspect columns, run SQL, build a chart, then save it for dashboards or reports.</p>`,
+    "importing-data": `<h3>Importing data</h3><p>Choose or drop CSV, JSON, NDJSON/JSONL, or Parquet files. URL imports are explicit and depend on the remote server allowing browser CORS access.</p>`,
+    sql: `<h3>Writing SQL</h3><p>QuackViz runs DuckDB SQL locally. Use starter queries for row counts, previews, summaries, and date ranges.</p>`,
+    visualizations: `<h3>Building charts</h3><p>Run a query first, then choose chart settings. Save the visualization before adding it to dashboards or reports.</p>`,
+    dashboards: `<h3>Dashboards</h3><p>Dashboards combine saved visualizations. Linked filtering applies only when compatible fields or parameters exist.</p>`,
+    reports: `<h3>Reports</h3><p>Reports contain editable sections and snapshots. Refresh dynamic sections before exporting when source data changes.</p>`,
+    maps: `<h3>Maps</h3><p>Maps use coordinates or matched regions. Remote basemaps make tile requests, but imported data is not sent to tile providers.</p>`,
+    "ai-privacy": `<h3>AI and privacy</h3><p>AI is optional. Metadata-only context is the default. Raw sample rows require explicit opt-in, and generated SQL is never executed silently.</p>`,
+    packages: `<h3>Export and backup</h3><p>Use backup and standalone exports to move local analytical work. Packages never include OpenRouter API keys.</p>`,
+    recovery: `<h3>Recovery</h3><p>Use More for validation, checkpoints, safe mode, and support bundles. Safe mode does not delete workspace data.</p>`,
+    shortcuts: `<h3>Keyboard shortcuts</h3><ul>${KEYBOARD_SHORTCUTS.map((shortcut) => `<li><strong>${html(shortcut.keys)}</strong> - ${html(shortcut.action)}</li>`).join("")}</ul>`,
+    troubleshooting: `<h3>Troubleshooting</h3><p id="beta-limitations">Beta limitations: browser memory limits apply, local files may need re-import after reload, URL import depends on CORS, AI requires OpenRouter, and Firefox/WebKit behavior may differ.</p>`,
+    limitations: `<h3>Beta limitations</h3><p>Local files may need re-import, large files may require reduced modes, remote basemaps require network access, and server-backed sharing is not implemented.</p>`,
+  }[topic.id] || `<h3>${html(topic.title)}</h3><p>See the local documentation for this topic.</p>`;
+  return `${content}${commonFooter}`;
 }
 
 function renderReport(state) {

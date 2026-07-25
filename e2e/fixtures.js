@@ -104,7 +104,12 @@ exports.test = base.extend({
 
 exports.expect = expect;
 
-exports.gotoApp = async function gotoApp(page, path = "/") {
+exports.gotoApp = async function gotoApp(page, path = "/", options = {}) {
+  if (!options.showWelcome) {
+    await page.addInitScript(() => {
+      localStorage.setItem("quackviz.onboarding.welcomeDismissed", "true");
+    });
+  }
   await page.goto(path);
   await page.waitForFunction(() => window.__QUACKVIZ_E2E__?.appReady === true);
 };

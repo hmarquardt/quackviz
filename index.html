@@ -19,9 +19,12 @@
             <path fill="#f4c542" d="M25 14h6l-5 4z"></path>
           </svg>
           <div>
-            <h1>QuackViz</h1>
-            <p>Static DuckDB visual analytics</p>
+            <h1>QuackViz <span class="beta-badge" data-testid="beta-badge">Beta</span></h1>
+            <p>Local-first data analysis</p>
           </div>
+          <button id="openCommandPalette" class="ghost-button" data-testid="open-command-palette" aria-label="Search QuackViz">Search</button>
+          <button id="openHelp" class="ghost-button" data-testid="open-help">Help</button>
+          <button id="openAbout" class="ghost-button" data-testid="open-about">About</button>
           <select id="themeSelect" class="theme-select" aria-label="Theme" data-testid="theme-select">
             <option value="system">System</option>
             <option value="light">Light</option>
@@ -32,6 +35,11 @@
         <section class="panel">
           <h2>Data Sources</h2>
           <div id="sourceList" class="object-list" data-testid="source-list"></div>
+        </section>
+
+        <section class="panel">
+          <h2>Recent</h2>
+          <div id="recentWork" class="object-list" data-testid="recent-work"></div>
         </section>
 
         <section class="panel">
@@ -48,13 +56,14 @@
       <main class="pane center-pane">
         <nav class="tabs" aria-label="Workspace modes">
           <button class="tab active" data-tab="data" data-testid="tab-data">Data</button>
-          <button class="tab" data-tab="sql" data-testid="tab-sql">SQL</button>
+          <button class="tab" data-tab="sql" data-testid="tab-sql">Analyze</button>
           <button class="tab" data-tab="visualize" data-testid="tab-visualize">Visualize</button>
-          <button class="tab" data-tab="dashboard" data-testid="tab-dashboard">Dashboard</button>
-          <button class="tab" data-tab="report" data-testid="tab-report">Report</button>
+          <button class="tab" data-tab="dashboard" data-testid="tab-dashboard">Dashboards</button>
+          <button class="tab" data-tab="report" data-testid="tab-report">Reports</button>
           <button class="tab" data-tab="ai" data-testid="tab-ai">AI</button>
-          <button class="tab" data-tab="debug" data-testid="tab-debug">Debug</button>
+          <button class="tab" data-tab="debug" data-testid="tab-debug">More</button>
         </nav>
+        <section id="workflowChecklist" class="workflow-checklist" aria-label="Guided workflow" data-testid="workflow-checklist"></section>
 
         <section id="dataTab" class="tab-panel active">
           <div class="section-head">
@@ -112,7 +121,7 @@
 
         <section id="sqlTab" class="tab-panel">
           <div class="section-head">
-            <h2>SQL</h2>
+            <h2>Analyze</h2>
             <div class="button-row">
               <button id="clearSql">Clear</button>
               <button id="copySql">Copy SQL</button>
@@ -121,6 +130,7 @@
             </div>
           </div>
           <label>Query name <input id="queryName" value="Monthly revenue" data-testid="query-name"></label>
+          <div id="starterQueries" class="starter-queries" data-testid="starter-queries"></div>
           <textarea id="sqlEditor" spellcheck="false" data-testid="sql-editor"></textarea>
           <div class="query-meta">
             <span id="queryRuntime">Runtime: -</span>
@@ -150,6 +160,11 @@
               <h2>Ask</h2>
               <label><input id="aiEnabled" type="checkbox"> Enable AI</label>
               <label>OpenRouter API key <input id="openRouterKey" type="password" autocomplete="off" placeholder="Stored locally only"></label>
+              <details open>
+                <summary>AI privacy basics</summary>
+                <p class="muted">AI is optional. API keys are stored locally. Metadata is sent only when you run an AI action, and raw sample rows are opt-in.</p>
+                <p class="muted">AI-generated SQL is treated as untrusted and is never run silently.</p>
+              </details>
               <div class="button-row">
                 <button id="refreshModels">Refresh models</button>
                 <button id="clearAiHistory" class="danger">Clear AI history</button>
@@ -165,12 +180,15 @@
                   <option value="sampleRows">Include up to N sample rows</option>
                 </select>
               </label>
-              <label>Temperature <input id="aiTemperature" type="number" min="0" max="1" step="0.1"></label>
-              <label>Max output tokens <input id="aiMaxTokens" type="number" min="256" max="8000" step="100"></label>
-              <label>Max sample rows <input id="aiMaxSampleRows" type="number" min="0" max="25"></label>
-              <label>Max result rows sent <input id="aiMaxResultRows" type="number" min="0" max="100"></label>
-              <label>Timeout ms <input id="aiTimeout" type="number" min="5000" max="120000" step="1000"></label>
-              <label>Custom system prompt <textarea id="aiSystemPrompt"></textarea></label>
+              <details>
+                <summary>Advanced AI settings</summary>
+                <label>Temperature <input id="aiTemperature" type="number" min="0" max="1" step="0.1"></label>
+                <label>Max output tokens <input id="aiMaxTokens" type="number" min="256" max="8000" step="100"></label>
+                <label>Max sample rows <input id="aiMaxSampleRows" type="number" min="0" max="25"></label>
+                <label>Max result rows sent <input id="aiMaxResultRows" type="number" min="0" max="100"></label>
+                <label>Timeout ms <input id="aiTimeout" type="number" min="5000" max="120000" step="1000"></label>
+                <label>Custom system prompt <textarea id="aiSystemPrompt"></textarea></label>
+              </details>
               <div id="aiSharingNotice" class="notice"></div>
               <pre id="aiContextPreview" class="debug-report"></pre>
               <div class="button-row">
@@ -282,7 +300,7 @@
 
         <section id="debugTab" class="tab-panel">
           <div class="section-head">
-            <h2>Debug</h2>
+            <h2>More</h2>
             <div class="button-row">
               <button id="copyDebug">Copy debug report</button>
               <button id="copyPerformanceReport">Copy performance report</button>
@@ -293,6 +311,16 @@
             </div>
           </div>
           <div id="recoveryStatus" class="status-strip" data-testid="recovery-status"></div>
+          <div class="panel">
+            <h2>Product Help and Recovery</h2>
+            <p class="muted">Use these when you need documentation, version details, recovery tools, or beta support information.</p>
+            <div class="button-row wrap">
+              <button data-product-action="show-welcome">Show welcome</button>
+              <button data-product-action="show-help">Open help</button>
+              <button data-product-action="show-about">About QuackViz</button>
+              <button data-product-action="report-problem">Report a problem</button>
+            </div>
+          </div>
           <div class="panel">
             <h2>Developer and Test Data</h2>
             <p class="muted">Loads deterministic test data used by self-tests, Playwright, demos, and troubleshooting.</p>
@@ -361,7 +389,46 @@
         </section>
       </aside>
     </div>
-    <footer class="app-footer" data-testid="app-footer">QuackViz <span id="footerVersion"></span></footer>
+    <div id="toastRegion" class="toast-region" aria-live="polite" aria-label="Notifications" data-testid="toast-region"></div>
+    <dialog id="welcomeDialog" class="product-dialog" data-testid="welcome-dialog" aria-labelledby="welcomeTitle">
+      <h2 id="welcomeTitle">Welcome to QuackViz Beta</h2>
+      <p>QuackViz analyzes local data in your browser with DuckDB-WASM, ECharts, and MapLibre. Nothing is uploaded automatically.</p>
+      <ul>
+        <li>Load CSV, JSON, NDJSON/JSONL, or Parquet files, or import a direct URL.</li>
+        <li>Write SQL, use local starter queries, or optionally ask AI for structured proposals.</li>
+        <li>Save charts, dashboards, reports, and portable local packages.</li>
+        <li>Local files may need to be re-imported after browser reloads.</li>
+      </ul>
+      <div class="button-row">
+        <button id="welcomeAddData" class="primary" data-testid="welcome-add-data">Add data</button>
+        <button id="welcomeFixture">Open sample walkthrough</button>
+        <button id="welcomePackage">Import package</button>
+        <button id="welcomeDismiss" data-testid="welcome-dismiss">Dismiss</button>
+      </div>
+    </dialog>
+    <dialog id="commandPalette" class="product-dialog command-palette" data-testid="command-palette" aria-labelledby="commandTitle">
+      <h2 id="commandTitle">Search QuackViz</h2>
+      <label>Search commands, saved work, and help <input id="commandInput" data-testid="command-input" autocomplete="off"></label>
+      <div id="commandResults" class="command-results" data-testid="command-results"></div>
+    </dialog>
+    <dialog id="helpDialog" class="product-dialog" data-testid="help-dialog" aria-labelledby="helpTitle">
+      <h2 id="helpTitle">Help</h2>
+      <label>Find a topic <input id="helpSearch" data-testid="help-search" autocomplete="off"></label>
+      <div class="help-layout">
+        <nav id="helpTopicList" class="object-list" aria-label="Help topics"></nav>
+        <article id="helpContent" class="help-content" data-testid="help-content"></article>
+      </div>
+      <button id="closeHelp">Close</button>
+    </dialog>
+    <dialog id="aboutDialog" class="product-dialog" data-testid="about-dialog" aria-labelledby="aboutTitle">
+      <h2 id="aboutTitle">About QuackViz Beta</h2>
+      <div id="aboutContent" data-testid="about-content"></div>
+      <div class="button-row">
+        <button id="copyAboutInfo">Copy deployment info</button>
+        <button id="closeAbout">Close</button>
+      </div>
+    </dialog>
+    <footer class="app-footer" tabindex="0" data-testid="app-footer">QuackViz Beta <span id="footerVersion"></span></footer>
     <script type="module" src="js/app.js"></script>
   </body>
 </html>

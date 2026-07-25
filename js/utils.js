@@ -21,7 +21,8 @@ export function sanitizeTableName(name) {
     .toLowerCase()
     .replace(/[^a-z0-9_]+/g, "_")
     .replace(/^_+|_+$/g, "");
-  return (/^[a-z_]/.test(cleaned) ? cleaned : `t_${cleaned}`) || "table_1";
+  const tableName = (/^[a-z_]/.test(cleaned) ? cleaned : `table_${cleaned}`) || "table";
+  return ["select", "from", "where", "table", "group", "order"].includes(tableName) ? `${tableName}_table` : tableName;
 }
 
 export function html(value) {

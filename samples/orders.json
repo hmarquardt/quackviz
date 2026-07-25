@@ -1,0 +1,5 @@
+[
+  { "order_id": 1, "region": "East", "revenue": 125.50 },
+  { "order_id": 2, "region": "West", "revenue": 210.75 },
+  { "order_id": 3, "region": "East", "revenue": 88.25 }
+]

@@ -17,8 +17,8 @@ import { resolveInteraction } from "./interaction-resolver.js";
 import { adaptEChartsClick, adaptMapLibreFeatureClick } from "./selection-adapters.js";
 import { buildBreadcrumb, drillDown, drillUp } from "./drilldown.js";
 import { compileParameterizedSql } from "./parameters.js";
-import { initializeDatabase, executeSql, tableExists } from "./db.js";
-import { loadIncludedSalesSample } from "./import.js";
+import { initializeDatabase, executeSql, registerFileBuffer, tableExists } from "./db.js";
+import { detectImportFormat, generateSafeTableName, importFromUrl, importLocalFile, importRegisteredSource, loadIncludedSalesSample, validateImportUrl } from "./import.js";
 import { exportMapVisualizationPackage } from "./map-export.js";
 import { createPortablePackage, inspectPortablePackage, validatePortablePackage, verifyPortablePackageIntegrity } from "./package.js";
 import { createStandaloneHtml, runtimeHarnessLoad } from "./standalone-runtime.js";
@@ -52,13 +52,14 @@ import { migrateWorkspace, validateWorkspaceIntegrity } from "./workspace-valida
 import { defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
 import { compileVisualizationSpec } from "./viz-compiler.js";
 import { disposeChartInstance, renderVisualization, showEmpty } from "./viz-renderer.js";
-import { copyText, nowIso, uid } from "./utils.js";
+import { copyText, escapeIdent, nowIso, uid } from "./utils.js";
 import { elements, getThemeTokens, initializeStaticControls, renderApp, renderSelfTest, seedDefaultSql, selectTab } from "./ui.js";
 
 let saveSuppressed = false;
 let currentAiAbortController = null;
 let currentDashboardAbortController = null;
 let currentReportAbortController = null;
+let currentImportAbortController = null;
 const interactionBus = createInteractionBus();
 const startupTracker = createStartupTracker();
 const workerManager = createWorkerManager({ workerUrl: "workers/data-worker.js" });
@@ -164,6 +165,38 @@ function bindEvents() {
     rebuildVisualization();
   });
   el.loadSample.addEventListener("click", loadSalesSample);
+  el.dataFileInput.addEventListener("change", () => prepareFileImport(Array.from(el.dataFileInput.files || [])));
+  el.dataDropZone.addEventListener("click", () => el.dataFileInput.click());
+  el.dataDropZone.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      el.dataFileInput.click();
+    }
+  });
+  el.dataDropZone.addEventListener("dragover", (event) => {
+    event.preventDefault();
+    el.dataDropZone.classList.add("drag-over");
+  });
+  el.dataDropZone.addEventListener("dragleave", () => el.dataDropZone.classList.remove("drag-over"));
+  el.dataDropZone.addEventListener("drop", (event) => {
+    event.preventDefault();
+    el.dataDropZone.classList.remove("drag-over");
+    prepareFileImport(Array.from(event.dataTransfer?.files || []));
+  });
+  el.dataUrlLoad.addEventListener("click", prepareUrlImport);
+  el.dataFormatSelect.addEventListener("change", () => {
+    state.dataImport.selectedFormat = el.dataFormatSelect.value;
+    if (state.dataImport.source === "file" && state.dataImport.pendingFiles[0]) {
+      state.dataImport.detectedFormat = detectImportFormat({ fileName: state.dataImport.pendingFiles[0].name, contentType: state.dataImport.pendingFiles[0].type, override: el.dataFormatSelect.value }).format || "";
+    }
+    notify();
+  });
+  el.dataTableName.addEventListener("input", () => { state.dataImport.proposedTableName = el.dataTableName.value; });
+  el.dataImportMode.addEventListener("change", () => { state.dataImport.options.mode = el.dataImportMode.value; notify(); });
+  el.dataReplaceMode.addEventListener("change", () => { state.dataImport.options.replace = el.dataReplaceMode.value !== "unique"; notify(); });
+  el.dataCsvHeader.addEventListener("change", () => { state.dataImport.options.header = el.dataCsvHeader.checked; notify(); });
+  el.dataImportConfirm.addEventListener("click", importPreparedData);
+  el.dataImportCancel.addEventListener("click", cancelImport);
   el.runSql.addEventListener("click", runEditorSql);
   el.sqlEditor.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === "Enter") runEditorSql();
@@ -264,19 +297,161 @@ async function restoreTableAvailability() {
     let loaded = false;
     try {
       loaded = await tableExists(source.tableName);
-    } catch {
+    } catch (error) {
+      addError("duckdb", "inspect-table-availability", error);
       loaded = false;
     }
     source.available = loaded;
+    source.availability = loaded ? "loaded" : "unavailable";
     markTableLoaded(source.tableName, loaded);
   }
 }
 
+function prepareFileImport(files) {
+  if (!files.length) return;
+  const existing = state.workspace.dataSources.map((source) => source.tableName);
+  const first = files[0];
+  const detected = detectImportFormat({ fileName: first.name, contentType: first.type, override: state.dataImport.selectedFormat });
+  state.dataImport.source = "file";
+  state.dataImport.pendingFiles = files.map((file) => ({ file, name: file.name, size: file.size, type: file.type }));
+  state.dataImport.url = "";
+  state.dataImport.proposedTableName = generateSafeTableName(first.name, existing);
+  state.dataImport.detectedFormat = detected.format || "";
+  state.dataImport.status = {
+    stage: "ready",
+    message: files.length === 1 ? "File ready to import." : `${files.length} files ready to import.`,
+    progress: null,
+    warning: detected.warnings?.[0]?.message || "",
+    error: detected.format ? "" : "Unsupported format. Choose a manual format before importing.",
+    elapsedMs: null,
+    cancelled: false,
+  };
+  notify();
+}
+
+function prepareUrlImport() {
+  const el = elements();
+  const url = el.dataUrlInput.value.trim();
+  const validation = validateImportUrl(url);
+  const detected = validation.valid ? detectImportFormat({ fileName: validation.url, override: state.dataImport.selectedFormat }) : { format: null, warnings: [] };
+  const existing = state.workspace.dataSources.map((source) => source.tableName);
+  state.dataImport.source = "url";
+  state.dataImport.pendingFiles = [];
+  state.dataImport.url = validation.valid ? validation.url : url;
+  state.dataImport.proposedTableName = validation.valid ? generateSafeTableName(new URL(validation.url).pathname.split("/").pop() || "url_import", existing) : "";
+  state.dataImport.detectedFormat = detected.format || "";
+  state.dataImport.status = {
+    stage: validation.valid ? "ready" : "error",
+    message: validation.valid ? "URL ready. Press Import to fetch and load it." : "URL is not valid.",
+    progress: null,
+    warning: detected.warnings?.[0]?.message || "",
+    error: validation.valid ? "" : validation.message,
+    elapsedMs: null,
+    cancelled: false,
+  };
+  notify();
+}
+
+async function importPreparedData() {
+  if (currentImportAbortController) currentImportAbortController.abort();
+  currentImportAbortController = new AbortController();
+  const started = performance.now();
+  const span = performanceMonitor.start("data-import", { source: state.dataImport.source, format: state.dataImport.detectedFormat });
+  const task = taskManager.create("data-import", { label: "Import data" });
+  const imported = [];
+  try {
+    updateImportStatus({ stage: "Starting import", message: "Importing data into DuckDB.", progress: 0, error: "", cancelled: false });
+    const format = elements().dataFormatSelect.value;
+    const options = {
+      header: elements().dataCsvHeader.checked,
+      replace: elements().dataReplaceMode.value !== "unique",
+      mode: elements().dataImportMode.value,
+      timeoutMs: TASK_TIMEOUTS.importMs,
+      existingTableNames: state.workspace.dataSources.map((source) => source.tableName),
+    };
+    if (state.dataImport.source === "url") {
+      const source = await importFromUrl({
+        url: state.dataImport.url,
+        tableName: state.dataImport.proposedTableName,
+        format,
+        options,
+        signal: currentImportAbortController.signal,
+        onProgress: (event) => {
+          taskManager.progress(task.id, event.progress ?? 0, event.stage || "Importing URL");
+          updateImportStatus({ ...event, message: event.stage || "Importing URL" });
+        },
+      });
+      imported.push(source);
+    } else {
+      for (const [index, item] of state.dataImport.pendingFiles.entries()) {
+        options.existingTableNames = [...state.workspace.dataSources.map((source) => source.tableName), ...imported.map((source) => source.tableName)];
+        const tableName = index === 0 ? state.dataImport.proposedTableName : generateSafeTableName(item.name, options.existingTableNames);
+        const source = await importLocalFile({
+          file: item.file,
+          tableName,
+          format,
+          options,
+          signal: currentImportAbortController.signal,
+          onProgress: (event) => {
+            const base = state.dataImport.pendingFiles.length > 1 ? `File ${index + 1}/${state.dataImport.pendingFiles.length}: ` : "";
+            taskManager.progress(task.id, event.progress ?? 0, `${base}${event.stage || "Importing file"}`);
+            updateImportStatus({ ...event, message: `${base}${event.stage || "Importing file"}` });
+          },
+        });
+        imported.push(source);
+      }
+    }
+    for (const source of imported) {
+      updateWorkspace((workspace) => addOrUpdateDataSource(workspace, source));
+      markTableLoaded(source.tableName, true);
+      addJournalEntry(state.recovery, { workspaceId: state.workspace.id, operation: "import-data-source", objectId: source.id });
+    }
+    const last = imported[imported.length - 1];
+    if (last) {
+      setActive({ dataSourceId: last.id });
+      elements().sqlEditor.value = `SELECT * FROM ${escapeIdent(last.tableName)} LIMIT 100;`;
+      elements().queryName.value = `${last.name} preview`;
+    }
+    invalidateDashboardCache();
+    await saveWorkspace(state.workspace);
+    state.storageStatus.lastSavedAt = nowIso();
+    await createCheckpoint(state.recovery, state.workspace, "post-data-import");
+    taskManager.complete(task.id, { count: imported.length });
+    span.finish({ success: true, importedCount: imported.length });
+    updateImportStatus({ stage: "complete", message: `Imported ${imported.length} source${imported.length === 1 ? "" : "s"}.`, progress: 1, elapsedMs: Math.round(performance.now() - started) });
+    addStatus("import", "complete", `Imported ${imported.length} data source${imported.length === 1 ? "" : "s"}.`);
+    refreshOperationalDiagnostics();
+  } catch (error) {
+    taskManager.error(task.id, error);
+    span.error(error);
+    const cancelled = error?.code === "IMPORT_CANCELLED";
+    updateImportStatus({ stage: cancelled ? "cancelled" : "error", message: cancelled ? "Import cancelled." : "Import failed.", error: error.message, cancelled, elapsedMs: Math.round(performance.now() - started) });
+    addError("import", error?.code || "import-data", error);
+    refreshOperationalDiagnostics();
+  } finally {
+    currentImportAbortController = null;
+  }
+}
+
+function cancelImport() {
+  if (currentImportAbortController) {
+    currentImportAbortController.abort();
+    updateImportStatus({ stage: "cancelling", message: "Cancelling import...", cancelled: true });
+  } else {
+    updateImportStatus({ stage: "idle", message: "No active import to cancel.", cancelled: false });
+  }
+}
+
+function updateImportStatus(partial) {
+  state.dataImport.status = { ...state.dataImport.status, ...partial };
+  notify();
+}
+
 async function loadSalesSample() {
-  const task = taskManager.create("sample-import", { label: "Load sample sales data" });
+  const task = taskManager.create("sample-import", { label: "Load bundled sales fixture" });
   const span = performanceMonitor.start("sample-import", { fileName: "sales.csv" });
   try {
-    addStatus("sample", "load", "Loading sample sales data...");
+    addStatus("sample", "load", "Loading bundled sales fixture...");
     taskManager.progress(task.id, 0.25, "Importing sample into DuckDB.");
     const source = await loadIncludedSalesSample();
     updateWorkspace((workspace) => {
@@ -294,7 +469,7 @@ async function loadSalesSample() {
     taskManager.complete(task.id, { tableName: source.tableName, rowCount: source.rowCount });
     span.finish({ success: true, rowCount: source.rowCount });
     refreshOperationalDiagnostics();
-    addStatus("sample", "load", "Sample sales data loaded.");
+    addStatus("sample", "load", "Bundled sales fixture loaded.");
   } catch (error) {
     taskManager.error(task.id, error);
     span.error(error);
@@ -1392,8 +1567,26 @@ function handleObjectSelection(event) {
   if (action === "select-source") {
     setActive({ dataSourceId: id });
     const source = state.workspace.dataSources.find((item) => item.id === id);
-    if (source) elements().sqlEditor.value = `SELECT * FROM ${source.tableName} LIMIT 100;`;
+    if (source) elements().sqlEditor.value = `SELECT * FROM ${escapeIdent(source.tableName)} LIMIT 100;`;
     selectTab("data");
+  }
+  if (action === "open-source-sql") {
+    const source = state.workspace.dataSources.find((item) => item.id === id);
+    if (!source) return;
+    setActive({ dataSourceId: id, queryId: null });
+    elements().queryName.value = `${source.name} preview`;
+    elements().sqlEditor.value = `SELECT * FROM ${escapeIdent(source.tableName)} LIMIT 100;`;
+    selectTab("sql");
+  }
+  if (action === "build-source-viz") {
+    const source = state.workspace.dataSources.find((item) => item.id === id);
+    if (!source) return;
+    setActive({ dataSourceId: id, queryId: null });
+    elements().queryName.value = `${source.name} visualization`;
+    elements().sqlEditor.value = `SELECT * FROM ${escapeIdent(source.tableName)} LIMIT 500;`;
+    setCurrentResult(null);
+    setCurrentSpec(null);
+    selectTab("visualize");
   }
   if (action === "select-query") {
     const query = state.workspace.queries.find((item) => item.id === id);
@@ -1480,6 +1673,87 @@ async function runSelfTest() {
   await step("SELECT can be executed", async () => {
     dataset = await executeSql("SELECT x, y FROM qv_self_test ORDER BY x");
     if (dataset.rowCount !== 2) throw new Error("Unexpected row count.");
+  });
+  await step("Detect CSV", () => {
+    if (detectImportFormat({ fileName: "orders.csv" }).format !== "csv") throw new Error("CSV not detected.");
+  });
+  await step("Detect JSON", () => {
+    if (detectImportFormat({ fileName: "orders.json" }).format !== "json") throw new Error("JSON not detected.");
+  });
+  await step("Detect NDJSON", () => {
+    if (detectImportFormat({ fileName: "events.jsonl" }).format !== "ndjson") throw new Error("NDJSON not detected.");
+  });
+  await step("Detect Parquet", () => {
+    if (detectImportFormat({ fileName: "orders.parquet" }).format !== "parquet") throw new Error("Parquet not detected.");
+  });
+  await step("Generate safe table name", () => {
+    if (generateSafeTableName("123-results.parquet") !== "table_123_results") throw new Error("Unexpected table name.");
+  });
+  await step("Register local test buffer", async () => {
+    await registerFileBuffer("/qv_self_import_buffer.csv", new TextEncoder().encode("id,name\n1,A\n2,B\n").buffer);
+  });
+  const importedSources = [];
+  await step("Import CSV", async () => {
+    const source = await importRegisteredSource({ virtualName: "/qv_self_import_buffer.csv", tableName: "qv_self_csv", format: "csv", metadata: { name: "Self CSV", sourceType: "fixture", fileName: "self.csv" }, options: { header: true, replace: true } });
+    importedSources.push(source);
+    if (source.rowCount !== 2 || source.columns.length !== 2) throw new Error("CSV import metadata invalid.");
+  });
+  await step("Import JSON", async () => {
+    await registerFileBuffer("/qv_self_import.json", new TextEncoder().encode('[{"id":1,"label":"A"},{"id":2,"label":"B"}]').buffer);
+    const source = await importRegisteredSource({ virtualName: "/qv_self_import.json", tableName: "qv_self_json", format: "json", metadata: { name: "Self JSON", sourceType: "fixture", fileName: "self.json" }, options: { replace: true } });
+    importedSources.push(source);
+    if (source.rowCount !== 2 || !source.columns.some((column) => column.name === "label")) throw new Error("JSON import metadata invalid.");
+  });
+  await step("Import NDJSON", async () => {
+    await registerFileBuffer("/qv_self_import.ndjson", new TextEncoder().encode('{"id":1,"label":"A"}\n{"id":2,"label":"B"}\n').buffer);
+    const source = await importRegisteredSource({ virtualName: "/qv_self_import.ndjson", tableName: "qv_self_ndjson", format: "ndjson", metadata: { name: "Self NDJSON", sourceType: "fixture", fileName: "self.ndjson" }, options: { replace: true } });
+    importedSources.push(source);
+    if (source.rowCount !== 2 || !source.columns.some((column) => column.name === "label")) throw new Error("NDJSON import metadata invalid.");
+  });
+  await step("Import Parquet", async () => {
+    await executeSql("CREATE OR REPLACE TEMP TABLE qv_self_parquet_source AS SELECT 1 AS id, 'A' AS label UNION ALL SELECT 2 AS id, 'B' AS label");
+    await executeSql("COPY qv_self_parquet_source TO '/qv_self_import.parquet' (FORMAT PARQUET)");
+    const source = await importRegisteredSource({ virtualName: "/qv_self_import.parquet", tableName: "qv_self_parquet", format: "parquet", metadata: { name: "Self Parquet", sourceType: "fixture", fileName: "self.parquet" }, options: { replace: true } });
+    importedSources.push(source);
+    if (source.rowCount !== 2 || !source.columns.some((column) => column.name === "label")) throw new Error("Parquet import metadata invalid.");
+  });
+  await step("Verify row counts", () => {
+    if (importedSources.some((source) => source.rowCount !== 2)) throw new Error("Unexpected imported row count.");
+  });
+  await step("Verify schemas", () => {
+    if (importedSources.some((source) => !source.columns.length)) throw new Error("Missing imported schema.");
+  });
+  await step("Validate URL", () => {
+    if (!validateImportUrl("https://example.com/data.csv").valid) throw new Error("Safe URL rejected.");
+  });
+  await step("Reject unsafe URL scheme", () => {
+    if (validateImportUrl("javascript:alert(1)").valid) throw new Error("Unsafe URL accepted.");
+  });
+  await step("Cancel mock URL import", async () => {
+    const controller = new AbortController();
+    controller.abort();
+    let cancelled = false;
+    try {
+      await importFromUrl({ url: "https://example.com/data.csv", tableName: "cancelled", format: "csv", signal: controller.signal });
+    } catch (error) {
+      cancelled = error.code === "IMPORT_CANCELLED";
+    }
+    if (!cancelled) throw new Error("Cancelled URL import was not reported.");
+  });
+  await step("Clean partial import", async () => {
+    await executeSql("CREATE TABLE qv_self_partial AS SELECT 1 AS x");
+    await importRegisteredSource({ virtualName: "/qv_self_missing.csv", tableName: "qv_self_partial", format: "csv", metadata: { sourceType: "fixture" }, options: { replace: true } }).catch(() => null);
+    const exists = await tableExists("qv_self_partial");
+    if (exists) throw new Error("Partial table was not cleaned.");
+  });
+  await step("Fixture is Debug-only", () => {
+    const normalDataButton = document.querySelector('[data-testid="load-sample"]');
+    const debugFixture = document.querySelector('[data-testid="debug-load-fixture"]');
+    if (normalDataButton || !debugFixture) throw new Error("Fixture is not Debug-only.");
+  });
+  await step("Inline SVG favicon", () => {
+    const favicon = document.querySelector('[data-testid="favicon-link"]');
+    if (!favicon || favicon.type !== "image/svg+xml" || !favicon.href.startsWith("data:image/svg+xml")) throw new Error("Inline SVG favicon missing.");
   });
   const queryId = uid("query");
   const validSpec = { version: 1, type: "line", title: "Self test", dataset: { queryId }, encoding: { x: { field: "x", dataType: "number", label: "X" }, y: [{ field: "y", dataType: "number", label: "Y" }] }, options: { smooth: true, showPoints: false, zoom: false, legend: false, tooltip: "axis", orientation: "vertical" } };

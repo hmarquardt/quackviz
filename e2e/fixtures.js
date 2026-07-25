@@ -123,7 +123,8 @@ exports.waitForRender = async function waitForRender(page) {
 };
 
 exports.loadSampleAndRunQuery = async function loadSampleAndRunQuery(page) {
-  await page.getByTestId("load-sample").click();
+  await selectWorkspaceTab(page, "debug");
+  await page.getByTestId("debug-load-fixture").click();
   await page.waitForFunction(() => window.__QUACKVIZ_E2E__?.state.statuses.some((status) => status.source === "sample" && status.operation === "load" && /loaded/i.test(status.message)), null, { timeout: 30_000 });
   await expect(page.getByTestId("schema-view")).toContainText("sales", { timeout: 30_000 });
   await selectWorkspaceTab(page, "sql");

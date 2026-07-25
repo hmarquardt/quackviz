@@ -1,10 +1,10 @@
 # QuackViz
 
-QuackViz is a static, browser-local DuckDB-WASM, Apache ECharts, and MapLibre GL JS analytical workspace. Current application version: `0.9.0`, build date `2026-07-24`.
+QuackViz is a static, browser-local DuckDB-WASM, Apache ECharts, and MapLibre GL JS analytical workspace. Current application version: `0.10.0`, build date `2026-07-24`.
 
-## Current Milestone: Operational Hardening
+## Current Milestone: Corrective Data Ingestion
 
-QuackViz now includes operational hardening primitives for performance measurement, task tracking, startup capability checks, workspace validation, recovery checkpoints, recovery journal entries, worker-contract validation, vendor-manifest diagnostics, sanitized support bundles, and release-gate testing. The existing import, profiling, SQL, visualization, AI, dashboard, report, map, interaction, persistence, export, tests, diagnostics, footer workflows, and portable-app capabilities remain in place.
+QuackViz now presents local-file and URL import as the primary first-use workflow. Users can choose or drop CSV, JSON, NDJSON/JSONL, and Parquet files, inspect detected format and proposed table names, import into DuckDB-WASM, inspect schema and sample rows, and continue to SQL or Visualize. The bundled sales fixture remains available under Debug for testing, demos, Playwright, and troubleshooting; it is not the primary data-loading workflow.
 
 The operational workflow is:
 
@@ -19,6 +19,22 @@ startup
 ```
 
 Remote database connectivity, real-time streaming, collaboration, authentication, cloud synchronization, arbitrary callbacks, arbitrary JavaScript plugins, and server-hosted publishing are not implemented.
+
+## Data Import
+
+Open the Data tab and use **Choose files**, drag files onto the drop zone, or prepare a direct file URL. Supported local formats are CSV, JSON arrays of objects, NDJSON/JSONL, and Parquet. QuackViz detects format from extension and content type where possible; users can override the detected format before import. Table names are generated from file names using safe DuckDB identifiers, with predictable collision handling.
+
+CSV, JSON, NDJSON/JSONL, and Parquet ingestion is performed through DuckDB-WASM readers. QuackViz does not use a separate JavaScript parser for normal ingestion. CSV import defaults to a header row and DuckDB automatic delimiter/type inference. JSON import expects a top-level array of objects; nested values remain DuckDB JSON/nested values for later SQL extraction. NDJSON/JSONL expects one JSON object per line. Parquet is read directly by DuckDB without converting the file to JavaScript objects first.
+
+URL import is explicit: QuackViz does not fetch a URL until the user presses the Load URL/Import actions. Only `http` and `https` URLs are accepted; `javascript:`, `data:`, `file:`, malformed URLs, and URLs with embedded credentials are rejected. URL imports are subject to the remote server’s browser CORS policy. Some URLs cannot be loaded directly because the remote server does not permit browser cross-origin access. Loading a URL makes a request to that remote server, but QuackViz does not send other workspace data to that URL and does not proxy through a third party.
+
+Import status shows source, file size where known, format, stage, progress where measurable, warnings, errors, elapsed time, and cancellation state. Failed or cancelled imports clean up partial DuckDB tables where possible and do not create available source metadata.
+
+Imported source metadata is saved in the workspace, including table name, source type, format, file size, row count, columns, import timestamp, and sample-row preview. DuckDB tables are memory-only after reload in this milestone. Saved source metadata is restored and marked unavailable until the user re-imports the original local file or URL. Browser security prevents QuackViz from retaining ordinary local file handles without an explicit supported mechanism.
+
+Local source data remains in the browser unless the user explicitly sends selected context to an external AI provider.
+
+The inline favicon is an SVG data URI in `index.html`, so it requires no separate file or network request and works under root and nested static-host paths.
 
 ## Run Locally
 
@@ -407,7 +423,7 @@ Map visualization package export uses:
   "formatVersion": 1,
   "exportedBy": {
     "app": "QuackViz",
-    "appVersion": "0.9.0",
+    "appVersion": "0.10.0",
     "buildDate": "2026-07-24"
   },
   "query": {},
@@ -504,7 +520,7 @@ The standalone footer includes machine-readable runtime metadata:
 
 ```html
 <footer
-  data-quackviz-runtime-version="0.9.0"
+  data-quackviz-runtime-version="0.10.0"
   data-quackviz-package-version="1">
 </footer>
 ```

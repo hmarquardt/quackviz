@@ -1,0 +1,3 @@
+{"event_id":1,"kind":"signup","region":"East"}
+{"event_id":2,"kind":"purchase","region":"West"}
+{"event_id":3,"kind":"purchase","region":"East"}

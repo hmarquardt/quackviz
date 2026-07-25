@@ -1,4 +1,4 @@
-export const APP_VERSION = "0.9.0";
+export const APP_VERSION = "0.10.0";
 export const BUILD_DATE = "2026-07-24";
 export const WORKSPACE_SCHEMA_VERSION = 1;
 export const VIZ_SPEC_VERSION = 1;
@@ -88,6 +88,14 @@ export const LARGE_FILE_THRESHOLDS = {
   cautionBytes: 100 * 1024 * 1024,
   strongWarningBytes: 500 * 1024 * 1024,
   acknowledgementBytes: 1024 * 1024 * 1024,
+};
+export const SUPPORTED_IMPORT_FORMATS = ["csv", "json", "ndjson", "parquet"];
+export const IMPORT_FORMAT_LABELS = {
+  auto: "Auto detect",
+  csv: "CSV",
+  json: "JSON array",
+  ndjson: "NDJSON / JSONL",
+  parquet: "Parquet",
 };
 export const RESULT_LIMITS = {
   tablePreviewRows: 500,

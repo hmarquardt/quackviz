@@ -1,4 +1,4 @@
-import { AI_CONTRACT_VERSION, APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL, DEPENDENCIES, MAP_SPEC_VERSION, VIZ_SPEC_VERSION, WORKSPACE_SCHEMA_VERSION } from "./constants.js";
+import { AI_CONTRACT_VERSION, APP_VERSION, BUILD_DATE, DEFAULT_SALES_SQL, DEPENDENCIES, IMPORT_FORMAT_LABELS, MAP_SPEC_VERSION, SUPPORTED_IMPORT_FORMATS, VIZ_SPEC_VERSION, WORKSPACE_SCHEMA_VERSION } from "./constants.js";
 import { AI_ACTIONS } from "./ai-contracts.js";
 import { getDatabaseStatus } from "./db.js";
 import { getDashboardRunnerStatus } from "./dashboard-runner.js";
@@ -17,6 +17,19 @@ export function elements() {
   return {
     themeSelect: $("themeSelect"),
     loadSample: $("loadSample"),
+    dataFileInput: $("dataFileInput"),
+    dataDropZone: $("dataDropZone"),
+    dataUrlInput: $("dataUrlInput"),
+    dataUrlLoad: $("dataUrlLoad"),
+    dataTableName: $("dataTableName"),
+    dataFormatSelect: $("dataFormatSelect"),
+    dataImportMode: $("dataImportMode"),
+    dataReplaceMode: $("dataReplaceMode"),
+    dataCsvHeader: $("dataCsvHeader"),
+    dataImportConfirm: $("dataImportConfirm"),
+    dataImportCancel: $("dataImportCancel"),
+    dataImportStatus: $("dataImportStatus"),
+    dataPreview: $("dataPreview"),
     sourceList: $("sourceList"),
     savedQueries: $("savedQueries"),
     savedVisualizations: $("savedVisualizations"),
@@ -157,7 +170,9 @@ export function elements() {
 }
 
 export function initializeStaticControls() {
+  document.body.dataset.activeTab = "data";
   elements().chartType.innerHTML = chartTypes().map((type) => `<option value="${type}">${html(labelType(type))}</option>`).join("");
+  elements().dataFormatSelect.innerHTML = ["auto", ...SUPPORTED_IMPORT_FORMATS].map((format) => `<option value="${format}">${html(IMPORT_FORMAT_LABELS[format] || format)}</option>`).join("");
   elements().mapBoundary.innerHTML = boundaryCatalog().map((boundary) => `<option value="${html(boundary.id)}">${html(boundary.label)}${boundary.unavailable ? " (not vendored)" : ""}</option>`).join("");
   elements().aiAction.innerHTML = AI_ACTIONS.map((action) => `<option value="${action.id}">${html(action.label)}</option>`).join("");
   elements().reportSectionType.innerHTML = REPORT_SECTION_TYPES.map((type) => `<option value="${type}">${html(type)}</option>`).join("");
@@ -165,12 +180,14 @@ export function initializeStaticControls() {
 }
 
 export function selectTab(name) {
+  document.body.dataset.activeTab = name;
   document.querySelectorAll(".tab").forEach((tab) => tab.classList.toggle("active", tab.dataset.tab === name));
   document.querySelectorAll(".tab-panel").forEach((panel) => panel.classList.toggle("active", panel.id === `${name}Tab`));
 }
 
 export function renderApp(state) {
   renderSources(state);
+  renderImportWorkspace(state);
   renderSavedQueries(state);
   renderSavedVisualizations(state);
   renderSchema(state);
@@ -192,11 +209,32 @@ function renderSources(state) {
   el.innerHTML = state.workspace.dataSources.map((source) => {
     const active = source.id === state.workspace.active.dataSourceId ? " active" : "";
     const available = state.loadedTables.has(source.tableName);
+    const format = source.fileType || "unknown";
+    const sourceType = source.sourceType || "file";
     return `<button class="object-item${active}" data-action="select-source" data-id="${html(source.id)}">
       <strong>${html(source.name)}</strong>
-      <small>${html(source.tableName)} · ${source.rowCount} rows · ${available ? "loaded" : "needs reload"}</small>
+      <small>${html(source.tableName)} · ${html(sourceType)} ${html(format)} · ${source.rowCount} rows · ${available ? "loaded" : "needs reload"}</small>
     </button>`;
   }).join("");
+}
+
+function renderImportWorkspace(state) {
+  const el = elements();
+  const dataImport = state.dataImport || {};
+  if (document.activeElement !== el.dataTableName) el.dataTableName.value = dataImport.proposedTableName || "";
+  if (document.activeElement !== el.dataFormatSelect) el.dataFormatSelect.value = dataImport.selectedFormat || "auto";
+  if (document.activeElement !== el.dataImportMode) el.dataImportMode.value = dataImport.options?.mode || "standard";
+  if (document.activeElement !== el.dataReplaceMode) el.dataReplaceMode.value = dataImport.options?.replace === false ? "unique" : "replace";
+  el.dataCsvHeader.checked = dataImport.options?.header !== false;
+  const selected = dataImport.source === "url" ? `URL: ${dataImport.url || ""}` : dataImport.pendingFiles?.length ? `Files: ${dataImport.pendingFiles.map((file) => file.name).join(", ")}` : "No file or URL selected.";
+  const detected = dataImport.detectedFormat ? `Detected format: ${dataImport.detectedFormat}.` : "Detected format: -.";
+  const status = dataImport.status || {};
+  const message = status.message || status.stage || "Choose a local file, drop files, or prepare a URL.";
+  const progress = status.progress == null ? "" : ` · ${Math.round(status.progress * 100)}%`;
+  const warning = status.warning ? `<p class="warning-text">${html(status.warning)}</p>` : "";
+  const error = status.error ? `<p class="error-text">${html(status.error)}</p>` : "";
+  el.dataImportStatus.innerHTML = `<strong>${html(message)}</strong><p>${html(selected)} · ${html(detected)}${progress}</p>${warning}${error}`;
+  el.dataImportConfirm.disabled = !dataImport.pendingFiles?.length && dataImport.source !== "url";
 }
 
 function renderSavedQueries(state) {
@@ -233,22 +271,43 @@ function renderSchema(state) {
   const active = state.workspace.dataSources.find((source) => source.id === state.workspace.active.dataSourceId);
   elements().dataStatus.textContent = databaseLabel(state);
   if (!active) {
-    elements().schemaView.innerHTML = `<div class="empty-state">Load the sales sample to inspect a DuckDB table.</div>`;
+    elements().schemaView.innerHTML = `<div class="empty-state"><h3>Add your first dataset</h3><p>Load a local CSV, JSON, NDJSON, or Parquet file, or import a direct URL.</p><p>Your data stays in this browser unless you explicitly use an external AI action.</p></div>`;
+    renderDataPreview(null);
     return;
   }
   const availability = state.loadedTables.has(active.tableName)
     ? `<p class="muted">DuckDB table is loaded for this page session.</p>`
-    : `<p class="error-text">This saved data source is not loaded in DuckDB. Use "Load sample sales data" to re-import it.</p>`;
+    : `<p class="error-text">This saved data source is not loaded in DuckDB. Re-import the original file or URL to make the table available again. Browser security prevents QuackViz from keeping local file handles without explicit support.</p>`;
   elements().schemaView.innerHTML = `
     <article class="column-card">
       <h3>${html(active.tableName)}</h3>
-      <p>${active.rowCount} rows · ${html(active.fileName)}</p>
+      <p>${active.rowCount} rows · ${active.columns.length} columns · ${html(active.fileType || "unknown")} · ${formatBytes(active.fileSize)}</p>
+      <p>${html(active.sourceType || "file")} ${active.fileName ? `· ${html(active.fileName)}` : ""}${active.sourceUrl ? `· ${html(active.sourceUrl)}` : ""}</p>
+      <p>Imported ${html(active.importedAt || "unknown")}</p>
       ${availability}
+      <div class="button-row wrap">
+        <button data-action="open-source-sql" data-id="${html(active.id)}">Open in SQL</button>
+        <button data-action="build-source-viz" data-id="${html(active.id)}">Build visualization</button>
+      </div>
     </article>
     ${active.columns.map((column) => `<article class="column-card">
       <h3>${html(column.name)}</h3>
       <p>${html(column.duckType)} · nullable: ${column.nullable ? "yes" : "no"}</p>
     </article>`).join("")}`;
+  renderDataPreview(active);
+}
+
+function renderDataPreview(source) {
+  const preview = source?.sampleRows?.length ? { columns: source.columns, rows: source.sampleRows } : null;
+  if (!preview) {
+    elements().dataPreview.innerHTML = `<div class="empty-state">Import or inspect a source to preview the first 50 rows.</div>`;
+    return;
+  }
+  elements().dataPreview.innerHTML = `<table>
+    <caption>First ${preview.rows.length} rows from ${html(source.tableName)}</caption>
+    <thead><tr>${preview.columns.map((column) => `<th>${html(column.name)}</th>`).join("")}</tr></thead>
+    <tbody>${preview.rows.map((row) => `<tr>${preview.columns.map((column) => `<td>${html(safeString(row[column.name]))}</td>`).join("")}</tr>`).join("")}</tbody>
+  </table>`;
 }
 
 function renderResult(result) {
@@ -526,6 +585,14 @@ function labelType(type) {
     "map-choropleth": "Choropleth map",
     "map-region-symbol": "Region-symbol map",
   }[type] || type;
+}
+
+function formatBytes(bytes) {
+  const value = Number(bytes || 0);
+  if (!value) return "size unknown";
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / 1024 / 1024).toFixed(1)} MB`;
 }
 
 function renderReport(state) {

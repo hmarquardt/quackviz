@@ -117,8 +117,14 @@ function hydrateDataSource(source) {
     id: source.id || uid("source"),
     name: source.name || source.tableName || "Data source",
     tableName: source.tableName,
-    sourceType: source.sourceType || "sample",
+    sourceType: source.sourceType || "file",
     fileName: source.fileName || "",
+    sourceUrl: source.sourceUrl || null,
+    fileType: source.fileType || source.format || "",
+    contentType: source.contentType || "",
+    fileSize: Number(source.fileSize || 0),
+    httpStatus: source.httpStatus || null,
+    redirected: Boolean(source.redirected),
     rowCount: Number(source.rowCount || 0),
     columns: Array.isArray(source.columns) ? source.columns.map((column) => ({
       name: column.name || column.column_name,
@@ -128,8 +134,12 @@ function hydrateDataSource(source) {
       semanticConfidence: column.semanticConfidence ?? null,
       semanticReasons: Array.isArray(column.semanticReasons) ? column.semanticReasons : [],
     })) : [],
+    sampleRows: Array.isArray(source.sampleRows) ? source.sampleRows.slice(0, 50) : [],
     importedAt: source.importedAt || null,
+    availability: "unavailable",
     available: false,
+    importOptions: source.importOptions || {},
+    warnings: Array.isArray(source.warnings) ? source.warnings : [],
   };
 }
 

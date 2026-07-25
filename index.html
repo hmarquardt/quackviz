@@ -3,13 +3,21 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>QuackViz</title>
+    <meta name="description" content="QuackViz is a static, browser-local DuckDB analytical workspace for local files, SQL, charts, maps, dashboards, and reports.">
+    <meta name="theme-color" content="#167c72">
+    <title>QuackViz local analytics</title>
+    <link id="faviconLink" data-testid="favicon-link" rel="icon" type="image/svg+xml" href="data:image/svg+xml,%3Csvg%20xmlns='http://www.w3.org/2000/svg'%20viewBox='0%200%2032%2032'%3E%3Cpath%20fill='%23167c72'%20d='M5%2018c0-6%205-10%2011-10h4l4-4v7h2c2%200%204%202%204%204%200%207-6%2013-14%2013H5z'/%3E%3Ccircle%20cx='20'%20cy='13'%20r='2'%20fill='white'/%3E%3Cpath%20fill='%23f4c542'%20d='M25%2014h6l-5%204z'/%3E%3Ctext%20x='7'%20y='24'%20font-family='Arial,sans-serif'%20font-size='8'%20font-weight='700'%20fill='white'%3EQV%3C/text%3E%3C/svg%3E">
     <link rel="stylesheet" href="css/app.css">
   </head>
   <body>
     <div id="app" class="app-shell">
       <aside class="pane left-pane">
         <header class="brand">
+          <svg class="brand-mark" aria-hidden="true" viewBox="0 0 32 32">
+            <path fill="currentColor" d="M5 18c0-6 5-10 11-10h4l4-4v7h2c2 0 4 2 4 4 0 7-6 13-14 13H5z"></path>
+            <circle cx="20" cy="13" r="2" fill="white"></circle>
+            <path fill="#f4c542" d="M25 14h6l-5 4z"></path>
+          </svg>
           <div>
             <h1>QuackViz</h1>
             <p>Static DuckDB visual analytics</p>
@@ -23,7 +31,6 @@
 
         <section class="panel">
           <h2>Data Sources</h2>
-          <button id="loadSample" class="primary wide" data-testid="load-sample">Load sample sales data</button>
           <div id="sourceList" class="object-list" data-testid="source-list"></div>
         </section>
 
@@ -54,7 +61,53 @@
             <h2>Data</h2>
             <span id="dataStatus" class="status" data-testid="data-status">Starting...</span>
           </div>
+          <section class="panel import-panel" aria-labelledby="addDataHeading">
+            <h2 id="addDataHeading">Add data</h2>
+            <div id="dataDropZone" class="drop-zone" tabindex="0" role="button" aria-label="Drop files here or choose local files" data-testid="data-drop-zone">
+              <strong>Drop files here</strong>
+              <span>CSV · JSON · NDJSON/JSONL · Parquet</span>
+            </div>
+            <div class="button-row">
+              <label class="file-button primary">Choose files
+                <input id="dataFileInput" type="file" multiple accept=".csv,.json,.ndjson,.jsonl,.parquet,text/csv,application/json,application/x-ndjson,application/vnd.apache.parquet" data-testid="data-file-input">
+              </label>
+              <a href="#supported-formats" class="secondary-link">Learn about supported formats</a>
+            </div>
+            <div class="url-import">
+              <h3>Import from URL</h3>
+              <label>Direct file URL <input id="dataUrlInput" type="url" placeholder="https://example.com/data.parquet" data-testid="data-url-input"></label>
+              <button id="dataUrlLoad" data-testid="data-url-load">Load URL</button>
+              <p class="muted">Some URLs cannot be loaded directly because the remote server does not permit browser cross-origin access.</p>
+            </div>
+            <div class="import-options">
+              <label>Proposed table name <input id="dataTableName" data-testid="data-table-name"></label>
+              <label>Format
+                <select id="dataFormatSelect" data-testid="data-format-select"></select>
+              </label>
+              <label>Import mode
+                <select id="dataImportMode">
+                  <option value="standard">Standard</option>
+                  <option value="low-memory">Low-memory</option>
+                  <option value="schema-only">Schema-only preview</option>
+                  <option value="sample-first">Sample-first</option>
+                </select>
+              </label>
+              <label>Duplicate table
+                <select id="dataReplaceMode">
+                  <option value="replace">Replace existing table</option>
+                  <option value="unique">Create unique table name</option>
+                </select>
+              </label>
+              <label><input id="dataCsvHeader" type="checkbox" checked> CSV has header row</label>
+              <div class="button-row">
+                <button id="dataImportConfirm" class="primary" data-testid="data-import-confirm">Import</button>
+                <button id="dataImportCancel" data-testid="data-import-cancel">Cancel</button>
+              </div>
+            </div>
+            <div id="dataImportStatus" class="import-status" aria-live="polite" data-testid="data-import-status"></div>
+          </section>
           <div id="schemaView" class="schema-grid" data-testid="schema-view"></div>
+          <div id="dataPreview" class="result-table empty-state" data-testid="data-preview">Select or import a source to preview rows.</div>
         </section>
 
         <section id="sqlTab" class="tab-panel">
@@ -240,6 +293,11 @@
             </div>
           </div>
           <div id="recoveryStatus" class="status-strip" data-testid="recovery-status"></div>
+          <div class="panel">
+            <h2>Developer and Test Data</h2>
+            <p class="muted">Loads deterministic test data used by self-tests, Playwright, demos, and troubleshooting.</p>
+            <button id="loadSample" class="primary" data-testid="debug-load-fixture">Load bundled sales fixture</button>
+          </div>
           <div class="panel package-panel">
             <h2>Portable Packages</h2>
             <div class="button-row wrap">

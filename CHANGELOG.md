@@ -1,5 +1,24 @@
 # Changelog
 
+## 1.0.0-beta.2 - 2026-07-25
+
+### Fixed
+
+- Added Firefox and WebKit Playwright projects to the checked-in release suite.
+- Narrowed the expected Firefox CORS diagnostic to the deliberate blocked-URL test.
+- Preserved jsDelivr dependency origins during WebKit tests so DuckDB transitive ESM imports resolve correctly.
+
+### Verified
+
+- Chromium baseline: 22 passed.
+- Firefox baseline before correction: 21 passed, 1 expected-CORS console mismatch.
+- WebKit baseline before correction: 22 failed because redirected DuckDB ESM imports resolved against the local test origin.
+
+### Release Blockers Remaining
+
+- Runtime dependencies are CDN-pinned rather than locally vendored, so offline analytical startup is not yet a release-candidate claim.
+- Real ECharts and MapLibre release scenarios, automated axe coverage, and Safari manual verification remain incomplete.
+
 ## 1.0.0-beta.1 - 2026-07-25
 
 ### Added

@@ -2,7 +2,7 @@
 
 QuackViz Beta is a static, browser-local analytical workspace for loading local data, querying it with DuckDB-WASM, and turning results into charts, maps, dashboards, reports, and portable local packages.
 
-Current version: `1.0.0-beta.1`  
+Current version: `1.0.0-beta.2`
 Build date: `2026-07-25`
 
 ## What It Does
@@ -25,7 +25,7 @@ QuackViz is local-first. It does not send usage analytics, does not upload data 
 
 This is a public-beta readiness build. Workspaces are stored in the browser, browser memory limits apply, and local files may need to be re-imported after reload. Backups are recommended for important work.
 
-Current limitations are documented in [Troubleshooting](docs/troubleshooting.md) and surfaced in the in-app Help.
+Current limitations are documented in [Known limitations](docs/known-limitations.md) and surfaced in the in-app Help. See [Feature status](docs/feature-status.md) for the verified product inventory and [Browser support](docs/browser-support.md) for the cross-browser matrix.
 
 ## Try It Locally
 
@@ -127,7 +127,7 @@ Install development dependencies:
 
 ```sh
 npm install
-npx playwright install chromium
+npx playwright install chromium firefox webkit
 ```
 
 Run E2E:

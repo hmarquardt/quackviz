@@ -54,6 +54,8 @@ export default { version, Map, AttributionControl, ScaleControl };
 
 const harmlessConsole = [
   /Download the Vue Devtools/i,
+  // Firefox reports the intentionally blocked URL used by the CORS error-state test.
+  /Cross-Origin Request Blocked:.*https:\/\/blocked\.example\/data\.csv/i,
 ];
 
 exports.test = base.extend({
@@ -83,6 +85,16 @@ exports.test = base.extend({
       contentType: "text/css",
       body: ".maplibregl-canvas{display:block;width:100%;height:100%;}",
     }));
+    // WebKit resolves jsDelivr's root-relative ESM imports against the document
+    // after a redirected module response. Preserve the CDN origin explicitly.
+    await page.route("http://127.0.0.1:8080/npm/**", async (route) => {
+      const path = new URL(route.request().url()).pathname;
+      const response = await route.fetch({ url: `https://cdn.jsdelivr.net${path}` });
+      const body = (await response.text())
+        .replaceAll('"/npm/', '"https://cdn.jsdelivr.net/npm/')
+        .replaceAll("'/npm/", "'https://cdn.jsdelivr.net/npm/");
+      return route.fulfill({ response, body });
+    });
     await page.route("https://openrouter.ai/**", async (route) => {
       const url = route.request().url();
       if (url.endsWith("/models")) {
@@ -112,6 +124,7 @@ exports.gotoApp = async function gotoApp(page, path = "/", options = {}) {
   }
   await page.goto(path);
   await page.waitForFunction(() => window.__QUACKVIZ_E2E__?.appReady === true);
+  await page.waitForFunction(() => window.__QUACKVIZ_E2E__?.dbReady === true, null, { timeout: 60_000 });
 };
 
 async function selectWorkspaceTab(page, name) {

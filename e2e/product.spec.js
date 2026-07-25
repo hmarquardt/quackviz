@@ -37,7 +37,7 @@ ORDER BY 1;`);
   await page.getByTestId("new-dashboard").click();
   await page.getByTestId("add-dashboard-viz").click();
   await expect(page.getByTestId("dashboard-canvas")).toContainText(/Revenue by Month|Monthly revenue|sales count/i);
-  await expect(page.getByTestId("app-footer")).toContainText("v1.0.0-beta.1");
+  await expect(page.getByTestId("app-footer")).toContainText("v1.0.0-beta.2");
 });
 
 test("command palette and help are keyboard accessible", async ({ page }) => {
@@ -69,6 +69,6 @@ test("About dialog shows canonical beta metadata", async ({ page }) => {
   await gotoApp(page);
   await page.getByTestId("open-about").click();
   await expect(page.getByTestId("about-dialog")).toBeVisible();
-  await expect(page.getByTestId("about-content")).toContainText("1.0.0-beta.1");
+  await expect(page.getByTestId("about-content")).toContainText("1.0.0-beta.2");
   await expect(page.getByTestId("about-content")).toContainText("beta");
 });

@@ -1,7 +1,10 @@
 {
   "scripts": {
-    "release:check": "playwright test",
+    "release:check": "playwright test --forbid-only --fail-on-flaky-tests",
     "test:e2e": "playwright test",
+    "test:e2e:chromium": "playwright test --project=chromium",
+    "test:e2e:firefox": "playwright test --project=firefox",
+    "test:e2e:webkit": "playwright test --project=webkit",
     "test:e2e:ui": "playwright test --ui",
     "test:e2e:headed": "playwright test --headed",
     "test:e2e:debug": "playwright test --debug",

@@ -24,6 +24,10 @@ const requiredShowcaseFiles = [
   "docs/images/quackviz-dashboard.png",
   "docs/images/quackviz-report.png",
   "docs/images/quackviz-dark.png",
+  "docs/images/quackviz-ai-model-picker.png",
+  "docs/tutorials/montreal-mobility.md",
+  "docs/images/tutorials/montreal/manifest.json",
+  "docs/images/tutorials/montreal/12-dashboard-created.png",
 ];
 
 for (const path of requiredShowcaseFiles) await access(path);

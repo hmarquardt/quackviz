@@ -32,5 +32,5 @@ test("offline core works from a nested path without public CDNs", async ({ page 
   await selectWorkspaceTab(page, "visualize");
   await expect(page.getByTestId("chart").locator("canvas")).toHaveCount(1, { timeout: 30_000 });
   expect(external).toEqual([]);
-  await expect(page.getByTestId("app-footer")).toContainText("v1.0.0-beta.3");
+  await expect(page.getByTestId("app-footer")).toContainText("v1.0.0-beta.4");
 });

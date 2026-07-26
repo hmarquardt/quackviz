@@ -1,0 +1,23 @@
+{
+  "tutorial": "montreal-mobility",
+  "viewport": "1440x900",
+  "theme": "light",
+  "dataset": "02_montreal_mobility_constellation.json",
+  "expectedRows": 249,
+  "appVersion": "1.0.0-beta.4",
+  "generatedBy": "Playwright",
+  "files": [
+    "01-open-data.png",
+    "02-open-showcase.png",
+    "03-select-montreal.png",
+    "04-import-progress.png",
+    "05-imported-schema.png",
+    "06-open-recipe.png",
+    "07-query-ready.png",
+    "08-query-results.png",
+    "09-map-settings.png",
+    "10-map-rendered.png",
+    "11-visualization-saved.png",
+    "12-dashboard-created.png"
+  ]
+}

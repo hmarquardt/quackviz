@@ -16,15 +16,17 @@ The E2E suite mocks AI provider responses and fails on unexpected page errors, f
 
 `npm run test:e2e:axe` runs automated accessibility checks and reports all severities by browser and screen. Serious and critical findings fail the gate; this is not a claim of independent WCAG conformance.
 
-The final beta.3 2026-07-25 `npm run rc:check` run exited 0:
+The beta.4 2026-07-26 `npm run release:check` run exited 0:
 
-- Browser unit tests: 286 passed.
+- Browser unit tests: 299 passed.
 - In-app self-test: 150 passed.
-- Chromium: 49 passed.
-- Firefox: 45 passed, 4 skipped.
-- WebKit: 45 passed, 4 skipped.
-- Overall: 139 passed, 8 skipped, 0 failed, 0 flaky.
-- Axe: 0 critical, serious, moderate, or minor findings in the required screen and collapsed-sidebar audits after the persistent page-heading correction.
+- Chromium: 54 passed.
+- Firefox: 50 passed, 4 skipped.
+- WebKit: 50 passed, 4 skipped.
+- Overall: 154 passed, 8 skipped, 0 failed, 0 flaky.
+- Axe: 0 critical, serious, moderate, or minor findings in the required screens, including disabled and model-populated AI states.
+
+`npm run docs:screenshots` regenerates the Montreal Mobility tutorial and AI model-picker images at a fixed 1440x900 viewport. The script uses the normal showcase import flow, real DuckDB-WASM, real MapLibre, and explicit application and map-idle readiness checks.
 
 The four skips in each non-Chromium project are the authoritative no-AI workflow, offline/nested-path workflow, dedicated Parquet workflow, and the older Chromium-specific MapLibre smoke. Cross-browser real JSON/DuckDB, line/bar ECharts, and four-type point-map matrices run separately without those skips.
 

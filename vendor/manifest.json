@@ -1,8 +1,8 @@
 {
   "format": "quackviz-vendor-manifest",
   "formatVersion": 1,
-  "appVersion": "1.0.0-beta.3",
-  "buildDate": "2026-07-25",
+  "appVersion": "1.0.0-beta.4",
+  "buildDate": "2026-07-26",
   "dependencies": [
     {
       "name": "@duckdb/duckdb-wasm",

@@ -166,7 +166,13 @@
           <div class="ai-grid">
             <section class="panel">
               <h2>Ask</h2>
-              <label><input id="aiEnabled" type="checkbox"> Enable AI</label>
+              <div class="ai-enable-control">
+                <label class="checkbox-row" for="aiEnabled" data-testid="ai-enable-row">
+                  <input id="aiEnabled" type="checkbox" data-testid="ai-enabled">
+                  <span data-testid="ai-enable-label">Enable AI</span>
+                </label>
+                <p class="muted">AI actions send only the context shown below.</p>
+              </div>
               <label>OpenRouter API key <input id="openRouterKey" type="password" autocomplete="off" placeholder="Stored locally only"></label>
               <details open>
                 <summary>AI privacy basics</summary>
@@ -177,7 +183,20 @@
                 <button id="refreshModels">Refresh models</button>
                 <button id="clearAiHistory" class="danger">Clear AI history</button>
               </div>
-              <label>Model <select id="aiModel"></select></label>
+              <fieldset class="model-picker" data-testid="model-picker">
+                <legend>Model</legend>
+                <label>Search models <input id="aiModelSearch" type="search" placeholder="Search name, ID, or provider" data-testid="model-search"></label>
+                <div class="model-filter-row">
+                  <label>Provider <select id="aiModelProvider" data-testid="model-provider"><option value="all">All providers</option></select></label>
+                  <button id="clearModelSearch" type="button">Clear search</button>
+                </div>
+                <label>OpenRouter model <select id="aiModel" data-testid="model-select"></select></label>
+                <div class="model-picker-meta">
+                  <span id="aiModelCount" role="status" data-testid="model-count">0 models</span>
+                  <button id="favoriteAiModel" type="button" data-testid="favorite-model">☆ Favorite current model</button>
+                </div>
+                <p id="aiModelRefreshStatus" class="muted" data-testid="model-refresh-status"></p>
+              </fieldset>
               <label>Action <select id="aiAction"></select></label>
               <label>Selected tables <select id="aiTables" multiple size="4"></select></label>
               <label>Question <textarea id="aiQuestion" placeholder="What should I look at?"></textarea></label>

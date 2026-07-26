@@ -1,6 +1,6 @@
 # QuackViz Showcase
 
-Last verified: 2026-07-25 with QuackViz 1.0.0-beta.3.
+Last verified: 2026-07-26 with QuackViz 1.0.0-beta.4.
 
 Open **Help > Showcase examples** to prepare any dataset in the normal Data import flow. Review the detected JSON format and proposed table name, then press **Import**. The gallery does not bypass validation or silently create saved work.
 
@@ -32,8 +32,10 @@ Stable map views are point, clustered point, proportional-symbol, and category-c
 
 The complete original cookbook and source-pack notes are retained under `examples/showcase/`.
 
+The [illustrated Montreal Mobility tutorial](tutorials/montreal-mobility.md) follows the ordinary showcase browser through import, schema inspection, SQL, a real local MapLibre map, visualization saving, and dashboard composition.
+
 ## Qualification Status
 
 All five files are ordinary JSON arrays and are validated through the normal import path. Automated release coverage imports Iris data for real line/bar ECharts rendering and Montreal data for real point, clustered, proportional-symbol, and category-colored MapLibre rendering across Chromium, Firefox, and Playwright WebKit.
 
-The requested multi-view hero dashboard and showcase report are not release-qualified. Their scatter/bubble, heatmap, KPI-row, and credible global choropleth requirements exceed the current stable product surface, so QuackViz remains `1.0.0-beta.3`.
+The requested multi-view hero dashboard and showcase report are not release-qualified. Their scatter/bubble, heatmap, KPI-row, and credible global choropleth requirements exceed the current stable product surface, so QuackViz remains `1.0.0-beta.4`.

@@ -46,7 +46,8 @@ import { addReport, addSection, createReport, deleteReport as deleteReportModel,
 import { createReportPackageFiles, exportReportJson, importReportJson, renderReportHtml, renderReportMarkdown } from "./report-export.js";
 import { refreshReport as runReportRefresh, refreshSection as runReportSectionRefresh } from "./report-runner.js";
 import { addError, addStatus, dismissToast, markTableLoaded, notify, setActive, setCurrentOption, setCurrentResult, setCurrentSpec, setWorkspace, state, subscribe, updateWorkspace } from "./state.js";
-import { getOpenRouterApiKey, initializeStorage, loadAiModelCache, loadThemePreference, loadWorkspace, resetStoredWorkspace, saveAiModelCache, saveThemePreference, saveTemporaryWorkspace, saveWorkspace, saveWorkspaceDebounced, setOpenRouterApiKey } from "./storage.js";
+import { getOpenRouterApiKey, initializeStorage, loadAiModelCache, loadAiModelPreferences, loadThemePreference, loadWorkspace, resetStoredWorkspace, saveAiModelCache, saveAiModelPreferences, saveThemePreference, saveTemporaryWorkspace, saveWorkspace, saveWorkspaceDebounced, setOpenRouterApiKey } from "./storage.js";
+import { normalizeAndSortModels, updateRecentModels } from "./ai-models.js";
 import { addAiHistory, addOrUpdateDataSource, addOrUpdateQuery, addOrUpdateVisualization, createWorkspace, hydrateWorkspace } from "./workspace.js";
 import { migrateWorkspace, validateWorkspaceIntegrity } from "./workspace-validation.js";
 import { defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
@@ -126,8 +127,11 @@ async function boot() {
   if (!elements().sqlEditor.value) seedDefaultSql();
   state.ai.apiKeyConfigured = Boolean(getOpenRouterApiKey());
   const modelCache = loadAiModelCache();
+  const modelPreferences = loadAiModelPreferences();
+  state.ai.favoriteModelIds = modelPreferences.favorites;
+  state.ai.recentModelIds = modelPreferences.recent;
   if (modelCache?.models) {
-    state.ai.modelList = modelCache.models;
+    state.ai.modelList = normalizeAndSortModels(modelCache.models, { favoriteModelIds: modelPreferences.favorites, recentModelIds: modelPreferences.recent });
     state.ai.modelListRefreshedAt = modelCache.refreshedAt;
   }
   startupTracker.phase("Restore table availability");
@@ -293,6 +297,7 @@ function showShowcaseRecipe(fileName) {
     <h3>SQL</h3><pre tabindex="0">${escapeHtml(recipe.sql)}</pre>
     <h3>Recommended visualization</h3><p>${escapeHtml(recipe.visualization)}</p>
     <p>${escapeHtml(recipe.fields)}</p>
+    ${dataset.tutorial ? `<p><a href="${escapeHtml(dataset.tutorial)}" target="_blank" rel="noreferrer">View full illustrated tutorial</a></p>` : ""}
     <p class="muted">Expected result: a supported view using ordinary QuackViz query and visualization controls.</p>`;
   openDialog(elements().recipeDialog);
 }
@@ -506,6 +511,14 @@ function bindEvents() {
   });
   el.previewAiContext.addEventListener("click", () => { refreshAiContextPreview(); notify(); });
   el.refreshModels.addEventListener("click", refreshAiModels);
+  el.aiModelSearch.addEventListener("input", () => { state.ai.modelSearch = el.aiModelSearch.value; notify(); });
+  el.aiModelProvider.addEventListener("change", () => { state.ai.modelProvider = el.aiModelProvider.value; notify(); });
+  el.clearModelSearch.addEventListener("click", () => { state.ai.modelSearch = ""; notify(); el.aiModelSearch.focus(); });
+  el.favoriteAiModel.addEventListener("click", toggleFavoriteAiModel);
+  el.aiModel.addEventListener("change", () => {
+    state.ai.recentModelIds = updateRecentModels(state.ai.recentModelIds, el.aiModel.value);
+    saveAiModelPreferences({ favorites: state.ai.favoriteModelIds, recent: state.ai.recentModelIds });
+  });
   el.runAi.addEventListener("click", runSelectedAiAction);
   el.cancelAi.addEventListener("click", () => {
     if (currentAiAbortController) {
@@ -1673,14 +1686,23 @@ function refreshAiContextPreview() {
 
 async function refreshAiModels() {
   persistAiSettingsFromUi();
+  const selectedModel = state.workspace.settings.ai.model;
   const result = await fetchOpenRouterModels({ apiKey: getOpenRouterApiKey(), timeoutMs: state.workspace.settings.ai.timeoutMs });
-  state.ai.modelList = result.models;
-  state.ai.modelListRefreshedAt = result.refreshedAt || new Date().toISOString();
+  state.ai.modelList = normalizeAndSortModels(result.models, { selectedModelId: selectedModel, favoriteModelIds: state.ai.favoriteModelIds, recentModelIds: state.ai.recentModelIds });
+  state.ai.modelListRefreshedAt = result.refreshedAt;
   state.ai.modelListError = result.error?.message || null;
   saveAiModelCache({ models: result.models, refreshedAt: state.ai.modelListRefreshedAt });
-  if (!result.models.some((model) => model.id === state.workspace.settings.ai.model)) {
-    updateWorkspace((workspace) => { workspace.settings.ai.model = result.models[0]?.id || workspace.settings.ai.model; });
-  }
+  addStatus("ai", "refresh-models", result.error ? "OpenRouter model refresh failed; fallback models are shown." : `Models refreshed. ${result.models.length} models available.`, result.error ? "warning" : "success");
+  notify();
+}
+
+function toggleFavoriteAiModel() {
+  const modelId = state.workspace.settings.ai.model;
+  if (!modelId) return;
+  state.ai.favoriteModelIds = state.ai.favoriteModelIds.includes(modelId)
+    ? state.ai.favoriteModelIds.filter((id) => id !== modelId)
+    : [...state.ai.favoriteModelIds, modelId];
+  saveAiModelPreferences({ favorites: state.ai.favoriteModelIds, recent: state.ai.recentModelIds });
   notify();
 }
 

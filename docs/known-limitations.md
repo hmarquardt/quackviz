@@ -1,6 +1,6 @@
 # Known Limitations
 
-Last verified: 2026-07-25.
+Last verified: 2026-07-26.
 
 | Area | Description | Browsers | Workaround | Severity | Status |
 | --- | --- | --- | --- | --- | --- |

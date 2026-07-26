@@ -94,6 +94,19 @@ export function resizeMapInstance(instanceId) {
   instances.get(instanceId)?.map.resize();
 }
 
+export function waitForMapIdle(instanceId, timeoutMs = 5000) {
+  const map = instances.get(instanceId)?.map;
+  if (!map) return Promise.reject(new Error(`Map instance '${instanceId}' does not exist.`));
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => reject(new Error(`Map instance '${instanceId}' did not become idle within ${timeoutMs} ms.`)), timeoutMs);
+    map.once("idle", () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+    map.triggerRepaint?.();
+  });
+}
+
 export function disposeMapInstance(instanceId) {
   const entry = instances.get(instanceId);
   if (!entry) return;

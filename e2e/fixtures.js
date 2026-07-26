@@ -19,10 +19,10 @@ export function init(container) {
 `;
 
 const maplibreMock = `
-export const version = "5.24.0-e2e";
-export class AttributionControl {}
-export class ScaleControl {}
-export class Map {
+const maplibreVersion = "5.24.0-e2e";
+class MapLibreAttributionControl {}
+class MapLibreScaleControl {}
+class MapLibreMap {
   constructor(options = {}) {
     this.options = options;
     this.sources = new globalThis.Map();
@@ -49,7 +49,12 @@ export class Map {
   off(event, layerId, fn) { this.handlers = this.handlers.filter((item) => item.event !== event || item.layerId !== layerId || item.fn !== fn); }
   getCanvas() { return this.canvas; }
 }
-export default { version, Map, AttributionControl, ScaleControl };
+globalThis.maplibregl = {
+  version: maplibreVersion,
+  Map: MapLibreMap,
+  AttributionControl: MapLibreAttributionControl,
+  ScaleControl: MapLibreScaleControl,
+};
 `;
 
 const harmlessConsole = [
@@ -81,11 +86,7 @@ exports.test = base.extend({
       }));
       await page.route("**/vendor/maplibre/maplibre-gl.js", (route) => route.fulfill({
         contentType: "application/javascript",
-        body: `${maplibreMock
-          .replaceAll("export const ", "const ")
-          .replaceAll("export class ", "class ")
-          .replace(/export default[^;]+;/, "")}
-globalThis.maplibregl = { version, Map, AttributionControl, ScaleControl };`,
+        body: maplibreMock,
       }));
       await page.route("**/vendor/maplibre/maplibre-gl.css", (route) => route.fulfill({
         contentType: "text/css",

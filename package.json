@@ -1,5 +1,6 @@
 {
   "scripts": {
+    "docs:screenshots": "node scripts/capture-montreal-tutorial.mjs",
     "release:check": "node scripts/release-static-check.mjs && playwright test --forbid-only --fail-on-flaky-tests",
     "rc:check": "npm audit --audit-level=moderate && node scripts/rc-static-check.mjs && npm run release:check",
     "test:e2e:axe": "playwright test e2e/accessibility",

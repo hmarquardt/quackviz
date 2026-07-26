@@ -1,5 +1,5 @@
-export const APP_VERSION = "1.0.0-beta.3";
-export const BUILD_DATE = "2026-07-25";
+export const APP_VERSION = "1.0.0-beta.4";
+export const BUILD_DATE = "2026-07-26";
 export const RELEASE_CHANNEL = "beta";
 export const WORKSPACE_SCHEMA_VERSION = 1;
 export const VIZ_SPEC_VERSION = 1;
@@ -44,6 +44,8 @@ export const STORAGE = {
   themePreferenceKey: "quackviz.theme",
   openRouterApiKey: "quackviz.openrouter.apiKey",
   aiModelCache: "quackviz.ai.models",
+  aiFavoriteModels: "quackviz.ai.favoriteModels",
+  aiRecentModels: "quackviz.ai.recentModels",
 };
 
 export const SAMPLE_SALES = {

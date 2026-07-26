@@ -19,11 +19,15 @@ for (const screen of ["data", "sql", "visualize", "dashboard", "report", "ai", "
   });
 }
 
-for (const state of ["showcase", "sidebar-collapsed"]) {
+for (const state of ["showcase", "sidebar-collapsed", "ai-models", "ai-no-model-results"]) {
   test(`${state} has no serious or critical axe violations`, async ({ page }) => {
     await gotoApp(page);
     if (state === "showcase") await page.getByTestId("browse-showcase").click();
-    else await page.getByTestId("toggle-sidebar").click();
+    else if (state === "sidebar-collapsed") await page.getByTestId("toggle-sidebar").click();
+    else {
+      await selectWorkspaceTab(page, "ai");
+      if (state === "ai-no-model-results") await page.getByTestId("model-search").fill("no model matches this phrase");
+    }
     const results = await new AxeBuilder({ page }).analyze();
     const blocking = results.violations.filter((violation) => ["serious", "critical"].includes(violation.impact));
     console.log(`AXE_RESULT browser=${test.info().project.name} screen=${state} ${["critical", "serious", "moderate", "minor"].map((impact) => `${impact}=${results.violations.filter((item) => item.impact === impact).length}`).join(" ")}`);

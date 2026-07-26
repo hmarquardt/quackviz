@@ -1,5 +1,6 @@
 import { APP_VERSION, OPENROUTER } from "./constants.js";
 import { fallbackModels } from "./ai-contracts.js";
+import { normalizeAndSortModels } from "./ai-models.js";
 
 export async function fetchOpenRouterModels({ apiKey, timeoutMs = 15000 } = {}) {
   const startedAt = performance.now();
@@ -13,15 +14,16 @@ export async function fetchOpenRouterModels({ apiKey, timeoutMs = 15000 } = {}) 
     const durationMs = Math.round(performance.now() - startedAt);
     if (!response.ok) throw providerError("AI_MODEL_LIST_UNAVAILABLE", response.status, await safeText(response));
     const payload = await response.json();
-    const models = (payload.data || []).map((model) => ({
+    const models = normalizeAndSortModels((payload.data || []).map((model) => ({
       id: model.id,
       name: model.name || model.id,
+      provider: model.id?.split("/")[0],
       contextLength: model.context_length || null,
       fallback: false,
-    })).filter((model) => model.id);
+    })).filter((model) => model.id));
     return { models, refreshedAt: new Date().toISOString(), diagnostics: { httpStatus: response.status, durationMs } };
   } catch (error) {
-    return { models: fallbackModels(), refreshedAt: null, error, diagnostics: { httpStatus: null, durationMs: Math.round(performance.now() - startedAt), fallback: true } };
+    return { models: normalizeAndSortModels(fallbackModels()), refreshedAt: null, error, diagnostics: { httpStatus: null, durationMs: Math.round(performance.now() - startedAt), fallback: true } };
   } finally {
     clearTimeout(timer);
   }

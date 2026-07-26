@@ -23,7 +23,7 @@ test("showcase gallery is discoverable and every dataset imports normally", asyn
   }
   await page.getByTestId("browse-showcase").click();
   await page.getByRole("button", { name: /View Montreal Mobility Constellation demo recipe/ }).click();
-  await expect(page.getByTestId("recipe-content")).toContainText("Clustered or proportional-symbol point map");
+  await expect(page.getByTestId("recipe-content")).toContainText("Category-colored point map");
   await expect(page.getByTestId("recipe-content").locator("pre")).toContainText("latitude");
 });
 

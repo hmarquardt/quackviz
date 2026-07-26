@@ -109,3 +109,24 @@ export function loadAiModelCache() {
 export function saveAiModelCache(cache) {
   localStorage.setItem(STORAGE.aiModelCache, JSON.stringify(cache));
 }
+
+export function loadAiModelPreferences() {
+  return {
+    favorites: parseStringList(STORAGE.aiFavoriteModels),
+    recent: parseStringList(STORAGE.aiRecentModels).slice(0, 10),
+  };
+}
+
+export function saveAiModelPreferences({ favorites = [], recent = [] }) {
+  localStorage.setItem(STORAGE.aiFavoriteModels, JSON.stringify([...new Set(favorites)]));
+  localStorage.setItem(STORAGE.aiRecentModels, JSON.stringify([...new Set(recent)].slice(0, 10)));
+}
+
+function parseStringList(key) {
+  try {
+    const value = JSON.parse(localStorage.getItem(key) || "[]");
+    return Array.isArray(value) ? value.filter((item) => typeof item === "string") : [];
+  } catch {
+    return [];
+  }
+}

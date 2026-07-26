@@ -12,6 +12,7 @@ import { chartTypes, defaultVisualizationSpec, validateVisualizationSpec } from 
 import { html, safeString, truncate } from "./utils.js";
 import { HELP_TOPICS, KEYBOARD_SHORTCUTS, SHOWCASE_DATASETS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "./product.js";
 import { visibleToasts } from "./state.js";
+import { filterModels, modelOptionLabel, modelProviders, normalizeAndSortModels } from "./ai-models.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -186,6 +187,12 @@ export function elements() {
     refreshModels: $("refreshModels"),
     clearAiHistory: $("clearAiHistory"),
     aiModel: $("aiModel"),
+    aiModelSearch: $("aiModelSearch"),
+    aiModelProvider: $("aiModelProvider"),
+    clearModelSearch: $("clearModelSearch"),
+    aiModelCount: $("aiModelCount"),
+    favoriteAiModel: $("favoriteAiModel"),
+    aiModelRefreshStatus: $("aiModelRefreshStatus"),
     aiAction: $("aiAction"),
     aiTables: $("aiTables"),
     aiQuestion: $("aiQuestion"),
@@ -267,6 +274,7 @@ function renderShowcaseGallery(container) {
     <div class="button-row">
       <button class="primary" data-product-action="load-showcase" data-showcase-file="${html(dataset.file)}" aria-label="Load ${html(dataset.title)}">Load dataset</button>
       <button data-product-action="show-recipe" data-showcase-file="${html(dataset.file)}" aria-label="View ${html(dataset.title)} demo recipe">View demo recipe</button>
+      ${dataset.tutorial ? `<a class="button-link" href="${html(dataset.tutorial)}" target="_blank" rel="noreferrer">5-minute illustrated tutorial</a>` : ""}
     </div>
   </article>`).join("");
 }
@@ -766,6 +774,7 @@ function helpContent(topic) {
         <p>${html(dataset.description)}</p>
         <small>${dataset.rows.toLocaleString()} rows · ${html(dataset.bestFor)}<br>${html(dataset.source)}</small>
         <button data-product-action="show-recipe" data-showcase-file="${html(dataset.file)}">View recipe</button>
+        ${dataset.tutorial ? `<a href="${html(dataset.tutorial)}" target="_blank" rel="noreferrer">View full tutorial</a>` : ""}
       </article>`).join("")}</div>
       <p class="muted">Demonstration data contains no private workspace data. QuackViz does not upload it.</p>`,
     "importing-data": `<h3>Importing data</h3><p>Choose or drop CSV, JSON, NDJSON/JSONL, or Parquet files. URL imports are explicit and depend on the remote server allowing browser CORS access.</p>`,
@@ -773,7 +782,7 @@ function helpContent(topic) {
     visualizations: `<h3>Building charts</h3><p>Run a query first, then choose chart settings. Save the visualization before adding it to dashboards or reports.</p>`,
     dashboards: `<h3>Dashboards</h3><p>Dashboards combine saved visualizations. Linked filtering applies only when compatible fields or parameters exist.</p>`,
     reports: `<h3>Reports</h3><p>Reports contain editable sections and snapshots. Refresh dynamic sections before exporting when source data changes.</p>`,
-    maps: `<h3>Maps</h3><p>Maps use coordinates or matched regions. Remote basemaps make tile requests, but imported data is not sent to tile providers.</p>`,
+    maps: `<h3>Maps</h3><p>Maps use coordinates or matched regions. Remote basemaps make tile requests, but imported data is not sent to tile providers.</p><p><a href="docs/tutorials/montreal-mobility.md" target="_blank" rel="noreferrer">Build a Montreal point map in five minutes</a></p>`,
     "ai-privacy": `<h3>AI and privacy</h3><p>AI is optional. Metadata-only context is the default. Raw sample rows require explicit opt-in, and generated SQL is never executed silently.</p>`,
     packages: `<h3>Export and backup</h3><p>Use backup and standalone exports to move local analytical work. Packages never include OpenRouter API keys.</p>`,
     recovery: `<h3>Recovery</h3><p>Use More for validation, checkpoints, safe mode, and support bundles. Safe mode does not delete workspace data.</p>`,
@@ -933,12 +942,37 @@ function chartPlaceholder(cardState) {
 function renderAi(state) {
   const el = elements();
   const settings = state.workspace.settings.ai;
-  el.aiStatus.textContent = settings.enabled ? `AI enabled · ${settings.model}` : "AI disabled.";
+  el.aiStatus.textContent = !settings.enabled ? "AI disabled." : !state.ai.apiKeyConfigured ? "AI enabled · Add an OpenRouter API key." : `AI ready · ${settings.model}`;
+  const models = normalizeAndSortModels(state.ai.modelList, {
+    selectedModelId: settings.model,
+    favoriteModelIds: state.ai.favoriteModelIds,
+    recentModelIds: state.ai.recentModelIds,
+  });
+  const providers = modelProviders(models);
+  if (document.activeElement !== el.aiModelProvider) {
+    el.aiModelProvider.innerHTML = `<option value="all">All providers</option>${providers.map((provider) => `<option value="${html(provider)}">${html(provider)}</option>`).join("")}`;
+    el.aiModelProvider.value = providers.includes(state.ai.modelProvider) ? state.ai.modelProvider : "all";
+  }
+  const filtered = filterModels(models, { search: state.ai.modelSearch, provider: state.ai.modelProvider });
   if (document.activeElement !== el.aiModel) {
-    const models = state.ai.modelList.length ? state.ai.modelList : [{ id: settings.model, name: settings.model, fallback: true }];
-    el.aiModel.innerHTML = models.map((model) => `<option value="${html(model.id)}">${html(model.name || model.id)}${model.fallback ? " (fallback)" : ""}</option>`).join("");
+    const selectedMissing = settings.model && !filtered.some((model) => model.id === settings.model);
+    const groups = new Map();
+    for (const model of filtered) {
+      const group = model.favorite ? "Favorites" : model.recentIndex !== null ? "Recent" : model.provider;
+      if (!groups.has(group)) groups.set(group, []);
+      groups.get(group).push(model);
+    }
+    el.aiModel.innerHTML = `${selectedMissing ? `<option value="${html(settings.model)}">${html(settings.model)} — saved selection unavailable in this view</option>` : ""}${[...groups].map(([group, items]) => `<optgroup label="${html(group)}">${items.map((model) => `<option value="${html(model.id)}">${html(modelOptionLabel(model))}${model.fallback ? " · fallback" : ""}</option>`).join("")}</optgroup>`).join("")}${!filtered.length && !selectedMissing ? `<option value="">No models match</option>` : ""}`;
     if (settings.model) el.aiModel.value = settings.model;
   }
+  if (document.activeElement !== el.aiModelSearch) el.aiModelSearch.value = state.ai.modelSearch;
+  el.aiModelCount.textContent = `${filtered.length} model${filtered.length === 1 ? "" : "s"} · ${providers.length} provider${providers.length === 1 ? "" : "s"}`;
+  const favorite = state.ai.favoriteModelIds.includes(settings.model);
+  el.favoriteAiModel.textContent = favorite ? "★ Unfavorite current model" : "☆ Favorite current model";
+  el.favoriteAiModel.setAttribute("aria-label", `${favorite ? "Unfavorite" : "Favorite"} ${settings.model || "current model"}`);
+  el.aiModelRefreshStatus.textContent = state.ai.modelListError
+    ? "OpenRouter model list could not be refreshed. Showing the built-in fallback list."
+    : state.ai.modelListRefreshedAt ? `Models refreshed ${new Date(state.ai.modelListRefreshedAt).toLocaleString()}.` : "Refresh to load the OpenRouter model catalog.";
   if (document.activeElement !== el.aiTables) {
     el.aiTables.innerHTML = state.workspace.dataSources.map((source) => `<option value="${html(source.tableName)}">${html(source.tableName)} · ${source.rowCount} rows</option>`).join("");
     for (const option of el.aiTables.options) option.selected = state.ai.selectedTables.includes(option.value);

@@ -7,9 +7,10 @@
 QuackViz Beta is a static, browser-local analytical workspace for loading local data, querying it with DuckDB-WASM, and turning results into charts, maps, dashboards, reports, and portable local packages.
 
 Five import-ready public demonstration datasets, their attribution, and a short evaluation workflow are documented in the [showcase guide](docs/showcase.md).
+For a complete illustrated path from JSON import to a real dashboard map, follow the [five-minute Montreal Mobility tutorial](docs/tutorials/montreal-mobility.md).
 
-Current version: `1.0.0-beta.3`
-Build date: `2026-07-25`
+Current version: `1.0.0-beta.4`
+Build date: `2026-07-26`
 
 ## See QuackViz
 

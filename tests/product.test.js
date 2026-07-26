@@ -1,6 +1,6 @@
 import { APP_VERSION } from "../js/constants.js";
 import { addOrUpdateQuery, addOrUpdateVisualization, createWorkspace } from "../js/workspace.js";
-import { HELP_TOPICS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "../js/product.js";
+import { HELP_TOPICS, SHOWCASE_DATASETS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "../js/product.js";
 
 const assert = (condition, message) => {
   if (!condition) throw new Error(message);
@@ -56,6 +56,18 @@ export const tests = [
     run: () => {
       assert(HELP_TOPICS.length >= 10, "help topic index too small");
       assert(HELP_TOPICS.every((topic) => topic.path.startsWith("docs/")), "help topic is not local");
+    },
+  },
+  {
+    name: "product: showcase recipes reference real dataset columns",
+    run: async () => {
+      for (const dataset of SHOWCASE_DATASETS) {
+        const response = await fetch(`../examples/showcase/${dataset.file}`);
+        const rows = await response.json();
+        const columns = new Set(Object.keys(rows[0] || {}));
+        assert(rows.length === dataset.rows, `${dataset.title} row count is stale`);
+        assert(dataset.recipe.requiredColumns.every((column) => columns.has(column)), `${dataset.title} recipe references a missing column`);
+      }
     },
   },
   {

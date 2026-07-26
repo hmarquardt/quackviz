@@ -18,7 +18,7 @@ The E2E suite mocks AI provider responses and fails on unexpected page errors, f
 
 The final beta.3 2026-07-25 `npm run rc:check` run exited 0:
 
-- Browser unit tests: 284 passed.
+- Browser unit tests: 285 passed.
 - In-app self-test: 150 passed.
 - Chromium: 41 passed.
 - Firefox: 37 passed, 4 skipped.

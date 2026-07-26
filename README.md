@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/quackviz-banner.svg" alt="QuackViz local-first analytics" width="960">
+</p>
+
 # QuackViz
 
 QuackViz Beta is a static, browser-local analytical workspace for loading local data, querying it with DuckDB-WASM, and turning results into charts, maps, dashboards, reports, and portable local packages.
@@ -6,6 +10,12 @@ Five import-ready public demonstration datasets, their attribution, and a short 
 
 Current version: `1.0.0-beta.3`
 Build date: `2026-07-25`
+
+## See QuackViz
+
+![QuackViz Data workspace with a loaded showcase dataset](docs/images/quackviz-data.png)
+
+In five minutes: load a local file or [showcase dataset](docs/showcase.md), inspect its schema, run a starter query, build and save a chart, then add it to a dashboard or report. The screenshots use public demonstration data and production renderers.
 
 ## What It Does
 
@@ -151,7 +161,7 @@ npm run rc:check
 
 Traces, screenshots, and videos are retained for failures under `test-results/`; the HTML report is written to `playwright-report/`.
 
-The beta.3 usability run on 2026-07-25 passed 115 of 123 Playwright cases with 8 documented Firefox/WebKit skips, no failures, and no flaky tests. Automated checks are green; human review of the deployed interface remains required before RC qualification.
+The beta.3 automated suite is cross-browser and includes real local imports, DuckDB-WASM, ECharts, MapLibre, notification geometry, and axe checks. Eight narrowly documented Firefox/WebKit skips remain. Independent participant review and human sign-off are still required before RC qualification; see the [usability test plan](docs/usability-test-plan.md).
 
 ## Architecture
 

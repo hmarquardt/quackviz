@@ -1,7 +1,12 @@
 import { createWorkspace } from "./workspace.js";
-import { nowIso } from "./utils.js";
+import { nowIso, uid } from "./utils.js";
 
 const listeners = new Set();
+const TOAST_LIMIT = 3;
+const TOAST_DISMISS_MS = {
+  success: 4000,
+  info: 6000,
+};
 
 export const state = {
   workspace: createWorkspace(),
@@ -207,24 +212,68 @@ export function setCurrentOption(option) {
   notify();
 }
 
-export function addStatus(source, operation, message) {
-  state.statuses.unshift({ source, operation, message, timestamp: nowIso() });
+export function addStatus(source, operation, message, level = "success") {
+  const timestamp = nowIso();
+  const item = {
+    id: uid("toast"),
+    source,
+    operation,
+    message,
+    level: ["success", "info", "warning"].includes(level) ? level : "info",
+    timestamp,
+    dismissedAt: null,
+  };
+  state.statuses = state.statuses.filter((status) => (
+    status.source !== source || status.operation !== operation || status.message !== message
+  ));
+  state.statuses.unshift(item);
   state.statuses = state.statuses.slice(0, 20);
   notify();
+  const dismissAfter = TOAST_DISMISS_MS[item.level];
+  if (dismissAfter) {
+    setTimeout(() => {
+      if (!item.dismissedAt) dismissToast(item.id, "status");
+    }, dismissAfter);
+  }
+  return item;
 }
 
 export function addError(source, operation, error) {
   const item = {
+    id: uid("toast"),
     source,
     operation,
     message: error?.message || String(error),
     detail: error?.stack || "",
+    level: "error",
     timestamp: nowIso(),
+    dismissedAt: null,
   };
+  state.errors = state.errors.filter((existing) => (
+    existing.source !== source || existing.operation !== operation || existing.message !== item.message
+  ));
   state.errors.unshift(item);
   state.errors = state.errors.slice(0, 20);
   notify();
   return item;
+}
+
+export function dismissToast(id, kind) {
+  const collection = kind === "error" ? state.errors : state.statuses;
+  const item = collection.find((candidate) => candidate.id === id);
+  if (!item || item.dismissedAt) return false;
+  item.dismissedAt = nowIso();
+  notify();
+  return true;
+}
+
+export function visibleToasts() {
+  return [
+    ...state.errors.filter((item) => !item.dismissedAt).map((item) => ({ ...item, kind: "error" })),
+    ...state.statuses.filter((item) => !item.dismissedAt).map((item) => ({ ...item, kind: "status" })),
+  ]
+    .sort((left, right) => right.timestamp.localeCompare(left.timestamp))
+    .slice(0, TOAST_LIMIT);
 }
 
 export function markTableLoaded(tableName, loaded = true) {

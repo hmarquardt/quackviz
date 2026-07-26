@@ -45,7 +45,7 @@ import { runQuery, buildQuerySaveInput } from "./query.js";
 import { addReport, addSection, createReport, deleteReport as deleteReportModel, duplicateReport as duplicateReportModel, duplicateSection, findReport, findSection, moveSection, removeSection, setSectionVisible, updateReport } from "./report.js";
 import { createReportPackageFiles, exportReportJson, importReportJson, renderReportHtml, renderReportMarkdown } from "./report-export.js";
 import { refreshReport as runReportRefresh, refreshSection as runReportSectionRefresh } from "./report-runner.js";
-import { addError, addStatus, markTableLoaded, notify, setActive, setCurrentOption, setCurrentResult, setCurrentSpec, setWorkspace, state, subscribe, updateWorkspace } from "./state.js";
+import { addError, addStatus, dismissToast, markTableLoaded, notify, setActive, setCurrentOption, setCurrentResult, setCurrentSpec, setWorkspace, state, subscribe, updateWorkspace } from "./state.js";
 import { getOpenRouterApiKey, initializeStorage, loadAiModelCache, loadThemePreference, loadWorkspace, resetStoredWorkspace, saveAiModelCache, saveThemePreference, saveTemporaryWorkspace, saveWorkspace, saveWorkspaceDebounced, setOpenRouterApiKey } from "./storage.js";
 import { addAiHistory, addOrUpdateDataSource, addOrUpdateQuery, addOrUpdateVisualization, createWorkspace, hydrateWorkspace } from "./workspace.js";
 import { migrateWorkspace, validateWorkspaceIntegrity } from "./workspace-validation.js";
@@ -214,6 +214,11 @@ function handleGlobalShortcuts(event) {
     event.preventDefault();
     openDialog(elements().helpDialog);
   } else if (event.key === "Escape") {
+    const toast = document.activeElement?.closest?.("[data-toast-id]");
+    if (toast) {
+      dismissToast(toast.dataset.toastId, toast.dataset.toastKind);
+      return;
+    }
     for (const dialog of [elements().commandPalette, elements().helpDialog, elements().aboutDialog, elements().welcomeDialog, elements().showcaseDialog, elements().recipeDialog]) closeDialog(dialog);
   }
 }
@@ -252,6 +257,8 @@ function handleProductAction(event) {
     openDialog(elements().showcaseDialog);
   } else if (action === "show-recipe") {
     showShowcaseRecipe(target.dataset.showcaseFile);
+  } else if (action === "dismiss-toast") {
+    dismissToast(target.dataset.toastId, target.dataset.toastKind);
   }
 }
 
@@ -2028,7 +2035,9 @@ async function runSelfTest() {
   });
   await step("Valid spec compiles to ECharts option", () => {
     const option = compileVisualizationSpec(validSpec, dataset, getThemeTokens(activeThemeName()));
-    if (!option.series?.[0] || !option.dataset) throw new Error("Missing compiled series or dataset.");
+    if (!option.series?.[0] || option.series[0].data?.length !== dataset.rowCount) {
+      throw new Error("Missing compiled series data.");
+    }
   });
   await step("IndexedDB can save and retrieve temporary workspace", async () => {
     const workspace = createWorkspace({ id: uid("workspace") });

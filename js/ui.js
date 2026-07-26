@@ -11,6 +11,7 @@ import { getRendererStatus } from "./viz-renderer.js";
 import { chartTypes, defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
 import { html, safeString, truncate } from "./utils.js";
 import { HELP_TOPICS, KEYBOARD_SHORTCUTS, SHOWCASE_DATASETS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "./product.js";
+import { visibleToasts } from "./state.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -337,8 +338,11 @@ function renderAbout() {
 }
 
 function renderToasts(container, state) {
-  const messages = [...state.errors.slice(0, 2).map((error) => ({ level: "error", message: `${error.source}: ${error.message}` })), ...state.statuses.slice(0, 2).map((status) => ({ level: "info", message: status.message }))];
-  container.innerHTML = messages.map((item) => `<div class="toast ${html(item.level)}">${html(item.message)}</div>`).join("");
+  const messages = visibleToasts();
+  container.innerHTML = messages.map((item) => `<div class="toast ${html(item.level)}" data-testid="toast" data-toast-id="${html(item.id)}" data-toast-kind="${html(item.kind)}" role="${item.level === "error" ? "alert" : "status"}">
+    <span>${html(item.level === "error" ? `${item.source}: ${item.message}` : item.message)}</span>
+    <button class="toast-dismiss" data-product-action="dismiss-toast" data-toast-id="${html(item.id)}" data-toast-kind="${html(item.kind)}" aria-label="Dismiss notification">×</button>
+  </div>`).join("");
 }
 
 function renderSources(state) {

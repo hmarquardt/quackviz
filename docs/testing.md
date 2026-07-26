@@ -18,12 +18,14 @@ The E2E suite mocks AI provider responses and fails on unexpected page errors, f
 
 The final beta.3 2026-07-25 `npm run rc:check` run exited 0:
 
-- Browser unit tests: 285 passed.
+- Browser unit tests: 286 passed.
 - In-app self-test: 150 passed.
-- Chromium: 41 passed.
-- Firefox: 37 passed, 4 skipped.
-- WebKit: 37 passed, 4 skipped.
-- Overall: 115 passed, 8 skipped, 0 failed, 0 flaky.
-- Axe: 0 critical or serious findings. One moderate heading-order finding remains in the collapsed-sidebar audit.
+- Chromium: 49 passed.
+- Firefox: 45 passed, 4 skipped.
+- WebKit: 45 passed, 4 skipped.
+- Overall: 139 passed, 8 skipped, 0 failed, 0 flaky.
+- Axe: 0 critical, serious, moderate, or minor findings in the required screen and collapsed-sidebar audits after the persistent page-heading correction.
 
 The four skips in each non-Chromium project are the authoritative no-AI workflow, offline/nested-path workflow, dedicated Parquet workflow, and the older Chromium-specific MapLibre smoke. Cross-browser real JSON/DuckDB, line/bar ECharts, and four-type point-map matrices run separately without those skips.
+
+Notification policy is release-tested: at most three messages are visible; duplicate messages coalesce; success dismisses after four seconds; information after six seconds; warnings and errors remain until dismissed. Notifications are rendered in workspace flow so they cannot cover import actions or the application footer. Focused notifications can be dismissed with Escape.

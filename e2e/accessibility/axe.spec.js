@@ -27,6 +27,10 @@ for (const state of ["showcase", "sidebar-collapsed"]) {
     const results = await new AxeBuilder({ page }).analyze();
     const blocking = results.violations.filter((violation) => ["serious", "critical"].includes(violation.impact));
     console.log(`AXE_RESULT browser=${test.info().project.name} screen=${state} ${["critical", "serious", "moderate", "minor"].map((impact) => `${impact}=${results.violations.filter((item) => item.impact === impact).length}`).join(" ")}`);
+    for (const violation of results.violations.filter((item) => ["moderate", "minor"].includes(item.impact))) {
+      const targets = violation.nodes.flatMap((node) => node.target).join(", ");
+      console.log(`AXE_FINDING browser=${test.info().project.name} screen=${state} impact=${violation.impact} rule=${violation.id} targets=${targets}`);
+    }
     expect(blocking, blocking.map((item) => `${item.id}: ${item.help}`).join("\n")).toEqual([]);
   });
 }

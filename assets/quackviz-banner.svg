@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 260" role="img" aria-labelledby="title desc">
+  <title id="title">QuackViz local-first analytics</title>
+  <desc id="desc">QuackViz duck mark with a concise description of the browser-local analytics workspace.</desc>
+  <rect width="1200" height="260" fill="#101418"/>
+  <g transform="translate(60 44) scale(.95)">
+    <path fill="#2aa198" d="M20 88c0-36 28-60 66-60h20l22-20v39h12c11 0 20 9 20 20 0 42-36 77-86 77H20z"/>
+    <circle cx="106" cy="57" r="8" fill="#fff"/>
+    <path fill="#f4c542" d="M132 62h28l-24 18z"/>
+    <text x="37" y="125" fill="#fff" font-family="system-ui,sans-serif" font-size="36" font-weight="700">QV</text>
+  </g>
+  <text x="250" y="112" fill="#fff" font-family="system-ui,sans-serif" font-size="58" font-weight="700">QuackViz</text>
+  <text x="252" y="165" fill="#a7b2bf" font-family="system-ui,sans-serif" font-size="28">Local-first SQL, charts, maps, dashboards, and reports</text>
+</svg>

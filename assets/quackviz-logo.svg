@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 160 160" role="img" aria-labelledby="title">
+  <title id="title">QuackViz duck mark</title>
+  <path fill="#167c72" d="M20 88c0-36 28-60 66-60h20l22-20v39h12c11 0 20 9 20 20 0 42-36 77-86 77H20z"/>
+  <circle cx="106" cy="57" r="8" fill="#fff"/>
+  <path fill="#f4c542" d="M132 62h28l-24 18z"/>
+  <text x="37" y="125" fill="#fff" font-family="system-ui,sans-serif" font-size="36" font-weight="700">QV</text>
+</svg>

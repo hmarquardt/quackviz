@@ -10,7 +10,6 @@ export function compileVisualizationSpec(inputSpec, dataset, themeTokens) {
   }
   const spec = validation.spec;
   const rows = deepClone(dataset.rows || []);
-  const columns = deepClone(dataset.columns || []);
   const x = spec.encoding.x;
   const yFields = spec.encoding.y;
   const isLine = spec.type === "line";
@@ -35,13 +34,10 @@ export function compileVisualizationSpec(inputSpec, dataset, themeTokens) {
       bottom: spec.options.zoom ? 76 : 42,
       containLabel: true,
     },
-    dataset: {
-      dimensions: columns.map((column) => column.name),
-      source: rows,
-    },
     xAxis: {
       type: xAxisType,
       name: x.label,
+      data: xAxisType === "category" ? rows.map((row) => row[x.field]) : undefined,
       axisLine: { lineStyle: { color: themeTokens.border } },
       axisLabel: { color: themeTokens.muted, formatter: xAxisType === "time" ? "{yyyy}-{MM}" : undefined },
       splitLine: { show: false },
@@ -63,8 +59,7 @@ export function compileVisualizationSpec(inputSpec, dataset, themeTokens) {
       textStyle: { color: themeTokens.muted },
     } : undefined,
     dataZoom: spec.options.zoom ? [
-      { type: "inside", filterMode: "none" },
-      { type: "slider", bottom: 22, borderColor: themeTokens.border, textStyle: { color: themeTokens.muted } },
+      { type: "inside", xAxisIndex: 0, filterMode: "filter", start: 0, end: 100 },
     ] : undefined,
     series: yFields.map((field) => ({
       type: isLine ? "line" : "bar",
@@ -74,7 +69,10 @@ export function compileVisualizationSpec(inputSpec, dataset, themeTokens) {
       symbolSize: isLine ? 7 : undefined,
       barMaxWidth: isLine ? undefined : 48,
       label: { show: spec.options.labels, color: themeTokens.text },
-      encode: { x: x.field, y: field.field, tooltip: columns.map((column) => column.name) },
+      data: xAxisType === "category"
+        ? rows.map((row) => row[field.field])
+        : rows.map((row) => [row[x.field], row[field.field]]),
+      encode: xAxisType === "category" ? undefined : { x: 0, y: 1, tooltip: [0, 1] },
     })),
   };
 }

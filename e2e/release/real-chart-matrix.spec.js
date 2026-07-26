@@ -57,6 +57,7 @@ test("real JSON import renders stable line and bar charts", async ({ page }) => 
     expect(diagnostics.runtimeVersion).toBe("6.1.0");
     expect(diagnostics.seriesTypes).toEqual([diagnostics.type]);
     expect(diagnostics.datasetRowCount).toBe(12);
+    expect(diagnostics.seriesDataCounts).toEqual([12]);
     expect(diagnostics.canvasCount).toBe(1);
   }
   expect(matrix.matrixInstancesDisposed).toBe(true);

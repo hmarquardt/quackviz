@@ -9,12 +9,27 @@
 - Added a persisted, keyboard-accessible workspace-library collapse control.
 - Made the showcase gallery directly discoverable from Data, Welcome, Help, and the command palette.
 - Added five honest recipes limited to stable line, vertical-bar, and point-map capabilities.
+- Moved notifications into workspace flow, capped the visible stack at three, coalesced duplicates, and added severity-specific dismissal.
+- Preserved the page heading when the workspace library is collapsed.
+- Corrected real ECharts category-series encoding and removed the slider zoom component that collapsed valid category charts.
+
+### Added
+
+- Reproducible first-time-user test plan, feedback form, findings register, Safari checklist, and unchecked RC human-sign-off template.
+- Privacy-safe documentation screenshots produced with real showcase imports and production ECharts and MapLibre renderers.
+- Responsive QuackViz logo and README banner assets that are not runtime dependencies.
 
 ### Verified
 
 - All five showcase JSON files load through the ordinary import pipeline with exact row counts.
 - Sidebar geometry is bounded at 1280x720 and 1024x768; collapsed state persists.
-- Showcase and collapsed-sidebar axe checks have no critical or serious findings.
+- Toast geometry does not overlap import controls or the application footer at 1280x720, 1024x768, 200% zoom, or stacked layout.
+- The collapsed-sidebar axe check has zero findings at every severity.
+
+### RC blockers remaining
+
+- Independent first-time-user sessions and human visual sign-off have not been completed.
+- Manual Safari validation remains outstanding because interactive Safari is unavailable in the agent environment.
 
 ## 1.0.0-beta.2 qualification work
 

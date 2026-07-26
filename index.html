@@ -13,45 +13,47 @@
     <div id="app" class="app-shell">
       <aside class="pane left-pane" aria-label="Workspace library">
         <header class="brand">
-          <svg class="brand-mark" aria-hidden="true" viewBox="0 0 32 32">
-            <path fill="currentColor" d="M5 18c0-6 5-10 11-10h4l4-4v7h2c2 0 4 2 4 4 0 7-6 13-14 13H5z"></path>
-            <circle cx="20" cy="13" r="2" fill="white"></circle>
-            <path fill="#f4c542" d="M25 14h6l-5 4z"></path>
-          </svg>
-          <div>
-            <h1>QuackViz <span class="beta-badge" data-testid="beta-badge">Beta</span></h1>
-            <p>Local-first data analysis</p>
+          <div class="brand-primary">
+            <svg class="brand-mark" aria-hidden="true" viewBox="0 0 32 32">
+              <path fill="currentColor" d="M5 18c0-6 5-10 11-10h4l4-4v7h2c2 0 4 2 4 4 0 7-6 13-14 13H5z"></path>
+              <circle cx="20" cy="13" r="2" fill="white"></circle>
+              <path fill="#f4c542" d="M25 14h6l-5 4z"></path>
+            </svg>
+            <div class="brand-copy">
+              <div class="brand-title-row"><h1>QuackViz</h1><span class="beta-badge" data-testid="beta-badge">Beta</span></div>
+              <p>Local-first analytics</p>
+            </div>
           </div>
-          <button id="openCommandPalette" class="ghost-button" data-testid="open-command-palette" aria-label="Search QuackViz">Search</button>
+          <button id="toggleSidebar" class="icon-button" data-testid="toggle-sidebar" aria-label="Collapse workspace library" aria-expanded="true">◀</button>
+          <button id="openCommandPalette" class="sidebar-search" data-testid="open-command-palette" aria-label="Search QuackViz">Search data, saved work, and commands</button>
+        </header>
+
+        <div class="sidebar-body">
+          <details class="sidebar-section" open data-sidebar-section="sources">
+            <summary>Data Sources <span id="sourceCount" class="count-badge">0</span></summary>
+            <div id="sourceList" class="object-list sidebar-list" data-testid="source-list" tabindex="0" aria-label="Data sources"></div>
+          </details>
+          <details class="sidebar-section" open data-sidebar-section="recent">
+            <summary>Recent Work <span id="recentCount" class="count-badge">0</span></summary>
+            <div id="recentWork" class="object-list sidebar-list" data-testid="recent-work" tabindex="0" aria-label="Recent work"></div>
+          </details>
+          <details class="sidebar-section" open data-sidebar-section="saved">
+            <summary>Saved Items <span id="savedCount" class="count-badge">0</span></summary>
+            <div class="sidebar-subhead">Queries</div>
+            <div id="savedQueries" class="object-list sidebar-list" data-testid="saved-queries" tabindex="0" aria-label="Saved queries"></div>
+            <div class="sidebar-subhead">Visualizations</div>
+            <div id="savedVisualizations" class="object-list sidebar-list" data-testid="saved-visualizations" tabindex="0" aria-label="Saved visualizations"></div>
+          </details>
+        </div>
+        <footer class="sidebar-footer">
           <button id="openHelp" class="ghost-button" data-testid="open-help">Help</button>
           <button id="openAbout" class="ghost-button" data-testid="open-about">About</button>
           <select id="themeSelect" class="theme-select" aria-label="Theme" data-testid="theme-select">
-            <option value="system">System</option>
-            <option value="light">Light</option>
-            <option value="dark">Dark</option>
+            <option value="system">System</option><option value="light">Light</option><option value="dark">Dark</option>
           </select>
-        </header>
-
-        <section class="panel">
-          <h2>Data Sources</h2>
-          <div id="sourceList" class="object-list" data-testid="source-list"></div>
-        </section>
-
-        <section class="panel">
-          <h2>Recent</h2>
-          <div id="recentWork" class="object-list" data-testid="recent-work"></div>
-        </section>
-
-        <section class="panel">
-          <h2>Saved Queries</h2>
-          <div id="savedQueries" class="object-list" data-testid="saved-queries"></div>
-        </section>
-
-        <section class="panel">
-          <h2>Saved Visualizations</h2>
-          <div id="savedVisualizations" class="object-list" data-testid="saved-visualizations"></div>
-        </section>
+        </footer>
       </aside>
+      <button id="restoreSidebar" class="sidebar-restore" data-testid="restore-sidebar" aria-label="Expand workspace library" hidden>▶</button>
 
       <main class="pane center-pane">
         <nav class="tabs" aria-label="Workspace modes">
@@ -82,6 +84,10 @@
               </label>
               <a href="#supported-formats" class="secondary-link">Learn about supported formats</a>
             </div>
+            <section class="showcase-callout" aria-labelledby="showcaseCalloutTitle">
+              <div><h3 id="showcaseCalloutTitle">Try a showcase</h3><p>Explore curated datasets for charts, maps, dashboards, and SQL.</p></div>
+              <button class="primary" data-product-action="browse-showcase" data-testid="browse-showcase">Browse showcase datasets</button>
+            </section>
             <div class="url-import">
               <h3>Import from URL</h3>
               <label>Direct file URL <input id="dataUrlInput" type="url" placeholder="https://example.com/data.parquet" data-testid="data-url-input"></label>
@@ -401,10 +407,20 @@
       </ul>
       <div class="button-row">
         <button id="welcomeAddData" class="primary" data-testid="welcome-add-data">Add data</button>
-        <button id="welcomeFixture">Open sample walkthrough</button>
+        <button id="welcomeShowcase" data-testid="welcome-showcase">Explore showcase datasets</button>
         <button id="welcomePackage">Import package</button>
         <button id="welcomeDismiss" data-testid="welcome-dismiss">Dismiss</button>
       </div>
+    </dialog>
+    <dialog id="showcaseDialog" class="product-dialog showcase-dialog" data-testid="showcase-dialog" aria-labelledby="showcaseTitle">
+      <h2 id="showcaseTitle">Showcase datasets</h2>
+      <p>Public demonstration data loaded through the same JSON import workflow as your own files.</p>
+      <div id="showcaseGallery" class="showcase-gallery" data-testid="showcase-gallery"></div>
+      <button id="closeShowcase">Close</button>
+    </dialog>
+    <dialog id="recipeDialog" class="product-dialog recipe-dialog" data-testid="recipe-dialog" aria-labelledby="recipeTitle">
+      <div id="recipeContent" data-testid="recipe-content"></div>
+      <div class="button-row"><button id="recipeOpenSql" class="primary">Open SQL in Analyze</button><button id="closeRecipe">Close</button></div>
     </dialog>
     <dialog id="commandPalette" class="product-dialog command-palette" data-testid="command-palette" aria-labelledby="commandTitle">
       <h2 id="commandTitle">Search QuackViz</h2>

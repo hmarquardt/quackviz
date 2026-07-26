@@ -1,6 +1,22 @@
 # Changelog
 
-## 1.0.0-beta.2 qualification work (unreleased)
+## 1.0.0-beta.3 - 2026-07-25
+
+### Fixed
+
+- Replaced the cramped six-column sidebar header with a responsive brand block, full-width search, and dedicated utility footer.
+- Bounded and collapsed sidebar libraries so populated workspaces do not cause uncontrolled pane growth.
+- Added a persisted, keyboard-accessible workspace-library collapse control.
+- Made the showcase gallery directly discoverable from Data, Welcome, Help, and the command palette.
+- Added five honest recipes limited to stable line, vertical-bar, and point-map capabilities.
+
+### Verified
+
+- All five showcase JSON files load through the ordinary import pipeline with exact row counts.
+- Sidebar geometry is bounded at 1280x720 and 1024x768; collapsed state persists.
+- Showcase and collapsed-sidebar axe checks have no critical or serious findings.
+
+## 1.0.0-beta.2 qualification work
 
 ### Changed
 

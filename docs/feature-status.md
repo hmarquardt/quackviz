@@ -1,6 +1,6 @@
 # Feature Status
 
-Last verified: 2026-07-25 with QuackViz 1.0.0-beta.2.
+Last verified: 2026-07-25 with QuackViz 1.0.0-beta.3.
 
 | Feature | UI location | Status | Browsers | Automated coverage | Known limitation |
 | --- | --- | --- | --- | --- | --- |

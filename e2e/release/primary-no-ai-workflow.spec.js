@@ -46,7 +46,7 @@ test("real local-file no-AI workflow", async ({ page }) => {
   const download = await downloadPromise;
   const exported = JSON.parse(fs.readFileSync(await download.path(), "utf8"));
   expect(exported.format).toBe("quackviz-package");
-  expect(exported.manifest.createdBy.appVersion).toBe("1.0.0-beta.2");
+  expect(exported.manifest.createdBy.appVersion).toBe("1.0.0-beta.3");
   expect(JSON.stringify(exported)).not.toContain("sk-release-secret");
-  await expect(page.getByTestId("app-footer")).toContainText("v1.0.0-beta.2");
+  await expect(page.getByTestId("app-footer")).toContainText("v1.0.0-beta.3");
 });

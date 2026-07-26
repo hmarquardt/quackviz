@@ -18,3 +18,15 @@ for (const screen of ["data", "sql", "visualize", "dashboard", "report", "ai", "
     expect(blocking, blocking.map((item) => `${item.id}: ${item.help}`).join("\n")).toEqual([]);
   });
 }
+
+for (const state of ["showcase", "sidebar-collapsed"]) {
+  test(`${state} has no serious or critical axe violations`, async ({ page }) => {
+    await gotoApp(page);
+    if (state === "showcase") await page.getByTestId("browse-showcase").click();
+    else await page.getByTestId("toggle-sidebar").click();
+    const results = await new AxeBuilder({ page }).analyze();
+    const blocking = results.violations.filter((violation) => ["serious", "critical"].includes(violation.impact));
+    console.log(`AXE_RESULT browser=${test.info().project.name} screen=${state} ${["critical", "serious", "moderate", "minor"].map((impact) => `${impact}=${results.violations.filter((item) => item.impact === impact).length}`).join(" ")}`);
+    expect(blocking, blocking.map((item) => `${item.id}: ${item.help}`).join("\n")).toEqual([]);
+  });
+}

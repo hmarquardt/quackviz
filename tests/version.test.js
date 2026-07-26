@@ -11,7 +11,7 @@ function assert(condition, message) {
 
 export const versionTests = [
   { name: "version: workspace metadata uses canonical version", run: () => assert(createWorkspace().metadata.appVersion === APP_VERSION, "workspace version mismatch") },
-  { name: "version: canonical app version", run: () => assert(APP_VERSION === "1.0.0-beta.2", "app version mismatch") },
+  { name: "version: canonical app version", run: () => assert(APP_VERSION === "1.0.0-beta.3", "app version mismatch") },
   { name: "version: build date present", run: () => assert(BUILD_DATE === "2026-07-25", "build date mismatch") },
   { name: "version: report metadata uses canonical version", run: () => assert(createReport().metadata.appVersion === APP_VERSION, "report version mismatch") },
   { name: "version: report html export uses canonical version", run: () => assert(renderReportHtml(createReport()).includes(APP_VERSION), "html version mismatch") },

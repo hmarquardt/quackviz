@@ -52,7 +52,7 @@ import { migrateWorkspace, validateWorkspaceIntegrity } from "./workspace-valida
 import { defaultVisualizationSpec, validateVisualizationSpec } from "./viz-spec.js";
 import { compileVisualizationSpec } from "./viz-compiler.js";
 import { disposeChartInstance, renderVisualization, showEmpty } from "./viz-renderer.js";
-import { copyText, escapeIdent, nowIso, uid } from "./utils.js";
+import { copyText, escapeIdent, html as escapeHtml, nowIso, uid } from "./utils.js";
 import { elements, getThemeTokens, initializeStaticControls, renderApp, renderSelfTest, seedDefaultSql, selectTab } from "./ui.js";
 import { HELP_TOPICS, ONBOARDING_STORAGE_KEYS, SHOWCASE_DATASETS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "./product.js";
 
@@ -74,6 +74,7 @@ window.addEventListener("error", (event) => addError("app", "window-error", even
 window.addEventListener("unhandledrejection", (event) => addError("app", "unhandled-rejection", event.reason));
 
 initializeStaticControls();
+setSidebarCollapsed(localStorage.getItem(ONBOARDING_STORAGE_KEYS.sidebarCollapsed) === "true");
 subscribe((next) => {
   updateE2EReadiness();
   renderApp(next);
@@ -206,11 +207,14 @@ function handleGlobalShortcuts(event) {
     event.preventDefault();
     selectTab("data");
     elements().dataFileInput.focus();
+  } else if (mod && event.shiftKey && key === "b") {
+    event.preventDefault();
+    setSidebarCollapsed(!document.body.classList.contains("sidebar-collapsed"));
   } else if (event.key === "?" && (!["INPUT", "TEXTAREA", "SELECT"].includes(document.activeElement?.tagName) || !document.activeElement.closest("dialog[open]"))) {
     event.preventDefault();
     openDialog(elements().helpDialog);
   } else if (event.key === "Escape") {
-    for (const dialog of [elements().commandPalette, elements().helpDialog, elements().aboutDialog, elements().welcomeDialog]) closeDialog(dialog);
+    for (const dialog of [elements().commandPalette, elements().helpDialog, elements().aboutDialog, elements().welcomeDialog, elements().showcaseDialog, elements().recipeDialog]) closeDialog(dialog);
   }
 }
 
@@ -244,6 +248,10 @@ function handleProductAction(event) {
     notify();
   } else if (action === "load-showcase") {
     loadShowcaseDataset(target.dataset.showcaseFile);
+  } else if (action === "browse-showcase") {
+    openDialog(elements().showcaseDialog);
+  } else if (action === "show-recipe") {
+    showShowcaseRecipe(target.dataset.showcaseFile);
   }
 }
 
@@ -259,11 +267,35 @@ async function loadShowcaseDataset(fileName) {
     const file = new File([await response.blob()], dataset.file, { type: "application/json" });
     prepareFileImport([file]);
     closeDialog(elements().helpDialog);
+    closeDialog(elements().showcaseDialog);
     selectTab("data");
-    addStatus("showcase", "prepare", `${dataset.title} is ready for normal JSON import.`);
+    await importPreparedData();
+    addStatus("showcase", "import", `${dataset.title} loaded. Review its schema, preview, and recipe for supported next steps.`);
   } catch (error) {
     addError("showcase", "prepare", error);
   }
+}
+
+function showShowcaseRecipe(fileName) {
+  const dataset = SHOWCASE_DATASETS.find((item) => item.file === fileName);
+  if (!dataset) return;
+  state.product.activeShowcaseFile = fileName;
+  const recipe = dataset.recipe;
+  elements().recipeContent.innerHTML = `<h2 id="recipeTitle">${escapeHtml(recipe.title)}</h2>
+    <p>${escapeHtml(dataset.title)} · ${dataset.rows.toLocaleString()} rows</p>
+    <h3>SQL</h3><pre tabindex="0">${escapeHtml(recipe.sql)}</pre>
+    <h3>Recommended visualization</h3><p>${escapeHtml(recipe.visualization)}</p>
+    <p>${escapeHtml(recipe.fields)}</p>
+    <p class="muted">Expected result: a supported view using ordinary QuackViz query and visualization controls.</p>`;
+  openDialog(elements().recipeDialog);
+}
+
+function setSidebarCollapsed(collapsed) {
+  document.body.classList.toggle("sidebar-collapsed", collapsed);
+  localStorage.setItem(ONBOARDING_STORAGE_KEYS.sidebarCollapsed, String(collapsed));
+  elements().toggleSidebar.setAttribute("aria-expanded", String(!collapsed));
+  elements().toggleSidebar.setAttribute("aria-label", collapsed ? "Expand workspace library" : "Collapse workspace library");
+  elements().restoreSidebar.hidden = !collapsed;
 }
 
 function openRecentItem(type, id) {
@@ -301,6 +333,11 @@ function activateCommandResult(commandId) {
     notify();
   } else if (item.action === "about") {
     openDialog(elements().aboutDialog);
+  } else if (item.action === "showcase") {
+    openDialog(elements().showcaseDialog);
+  } else if (item.action === "showcase-dataset") {
+    state.product.activeShowcaseFile = item.showcaseFile;
+    openDialog(elements().showcaseDialog);
   } else if (item.artifactId) {
     openRecentItem(item.type, item.artifactId);
   } else if (item.tab) {
@@ -334,18 +371,41 @@ function bindEvents() {
   el.openCommandPalette.addEventListener("click", openCommandPalette);
   el.openHelp.addEventListener("click", () => openDialog(el.helpDialog));
   el.openAbout.addEventListener("click", () => openDialog(el.aboutDialog));
+  el.toggleSidebar.addEventListener("click", () => setSidebarCollapsed(true));
+  el.restoreSidebar.addEventListener("click", () => setSidebarCollapsed(false));
   el.welcomeAddData.addEventListener("click", () => { dismissWelcome(); selectTab("data"); elements().dataFileInput.focus(); });
-  el.welcomeFixture.addEventListener("click", () => { dismissWelcome(); selectTab("debug"); elements().loadSample.focus(); });
+  el.welcomeShowcase.addEventListener("click", () => { dismissWelcome(); openDialog(el.showcaseDialog); });
   el.welcomePackage.addEventListener("click", () => { dismissWelcome(); selectTab("debug"); elements().exportWorkspacePackage.focus(); });
   el.welcomeDismiss.addEventListener("click", dismissWelcome);
   el.commandInput.addEventListener("input", () => { state.product.commandQuery = el.commandInput.value; notify(); });
   el.helpSearch.addEventListener("input", () => notify());
   el.closeHelp.addEventListener("click", () => closeDialog(el.helpDialog));
   el.closeAbout.addEventListener("click", () => closeDialog(el.aboutDialog));
+  el.closeShowcase.addEventListener("click", () => closeDialog(el.showcaseDialog));
+  el.closeRecipe.addEventListener("click", () => closeDialog(el.recipeDialog));
+  el.recipeOpenSql.addEventListener("click", () => {
+    const dataset = SHOWCASE_DATASETS.find((item) => item.file === state.product.activeShowcaseFile);
+    if (!dataset) return;
+    elements().sqlEditor.value = dataset.recipe.sql;
+    elements().queryName.value = dataset.recipe.title;
+    closeDialog(el.recipeDialog);
+    closeDialog(el.showcaseDialog);
+    selectTab("sql");
+  });
   el.copyAboutInfo.addEventListener("click", () => copyText(JSON.stringify({ appVersion: APP_VERSION, buildDate: BUILD_DATE, url: window.location.href, workspaceId: state.workspace.id }, null, 2)).catch((error) => addError("ui", "copy-about", error)));
-  for (const dialog of [el.welcomeDialog, el.commandPalette, el.helpDialog, el.aboutDialog]) {
+  for (const dialog of [el.welcomeDialog, el.commandPalette, el.helpDialog, el.aboutDialog, el.showcaseDialog, el.recipeDialog]) {
     dialog.addEventListener("close", restoreDialogFocus);
   }
+  document.querySelectorAll("[data-sidebar-section]").forEach((section) => {
+    const key = `quackviz.sidebar.section.${section.dataset.sidebarSection}`;
+    if (localStorage.getItem(key) === "closed") section.open = false;
+    const summary = section.querySelector("summary");
+    summary?.setAttribute("aria-expanded", String(section.open));
+    section.addEventListener("toggle", () => {
+      localStorage.setItem(key, section.open ? "open" : "closed");
+      summary?.setAttribute("aria-expanded", String(section.open));
+    });
+  });
   el.themeSelect.addEventListener("change", () => {
     updateWorkspace((workspace) => { workspace.settings.theme = el.themeSelect.value; });
     saveThemePreference(el.themeSelect.value);

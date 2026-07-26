@@ -4,7 +4,7 @@ QuackViz Beta is a static, browser-local analytical workspace for loading local 
 
 Five import-ready public demonstration datasets, their attribution, and a short evaluation workflow are documented in the [showcase guide](docs/showcase.md).
 
-Current version: `1.0.0-beta.2`
+Current version: `1.0.0-beta.3`
 Build date: `2026-07-25`
 
 ## What It Does
@@ -151,7 +151,7 @@ npm run rc:check
 
 Traces, screenshots, and videos are retained for failures under `test-results/`; the HTML report is written to `playwright-report/`.
 
-The final beta qualification run on 2026-07-25 passed 100 of 108 Playwright cases with 8 documented Firefox/WebKit skips, no failures, and no flaky tests. Automated RC checks are green, but the release remains beta because the requested showcase hero requires chart and boundary capabilities that are not currently stable.
+The beta.3 usability run on 2026-07-25 passed 115 of 123 Playwright cases with 8 documented Firefox/WebKit skips, no failures, and no flaky tests. Automated checks are green; human review of the deployed interface remains required before RC qualification.
 
 ## Architecture
 

@@ -20,6 +20,8 @@ export function elements() {
     openCommandPalette: $("openCommandPalette"),
     openHelp: $("openHelp"),
     openAbout: $("openAbout"),
+    toggleSidebar: $("toggleSidebar"),
+    restoreSidebar: $("restoreSidebar"),
     workflowChecklist: $("workflowChecklist"),
     recentWork: $("recentWork"),
     loadSample: $("loadSample"),
@@ -37,6 +39,9 @@ export function elements() {
     dataImportStatus: $("dataImportStatus"),
     dataPreview: $("dataPreview"),
     sourceList: $("sourceList"),
+    sourceCount: $("sourceCount"),
+    recentCount: $("recentCount"),
+    savedCount: $("savedCount"),
     savedQueries: $("savedQueries"),
     savedVisualizations: $("savedVisualizations"),
     dataStatus: $("dataStatus"),
@@ -152,7 +157,7 @@ export function elements() {
     toastRegion: $("toastRegion"),
     welcomeDialog: $("welcomeDialog"),
     welcomeAddData: $("welcomeAddData"),
-    welcomeFixture: $("welcomeFixture"),
+    welcomeShowcase: $("welcomeShowcase"),
     welcomePackage: $("welcomePackage"),
     welcomeDismiss: $("welcomeDismiss"),
     commandPalette: $("commandPalette"),
@@ -167,6 +172,13 @@ export function elements() {
     aboutContent: $("aboutContent"),
     copyAboutInfo: $("copyAboutInfo"),
     closeAbout: $("closeAbout"),
+    showcaseDialog: $("showcaseDialog"),
+    showcaseGallery: $("showcaseGallery"),
+    closeShowcase: $("closeShowcase"),
+    recipeDialog: $("recipeDialog"),
+    recipeContent: $("recipeContent"),
+    recipeOpenSql: $("recipeOpenSql"),
+    closeRecipe: $("closeRecipe"),
     aiStatus: $("aiStatus"),
     aiEnabled: $("aiEnabled"),
     openRouterKey: $("openRouterKey"),
@@ -234,10 +246,28 @@ function renderProductShell(state) {
   state.product.onboarding = onboarding;
   renderWorkflowChecklist(el.workflowChecklist, onboarding);
   renderRecentWork(el.recentWork, state.workspace);
+  el.sourceCount.textContent = state.workspace.dataSources.length;
+  el.recentCount.textContent = recentItems(state.workspace, 30).length;
+  el.savedCount.textContent = state.workspace.queries.length + state.workspace.visualizations.length;
+  renderShowcaseGallery(el.showcaseGallery);
   renderCommandPalette(state);
   renderHelp(state);
   renderAbout();
   renderToasts(el.toastRegion, state);
+}
+
+function renderShowcaseGallery(container) {
+  container.innerHTML = SHOWCASE_DATASETS.map((dataset) => `<article class="showcase-card">
+    <h3>${html(dataset.title)}</h3>
+    <p>${html(dataset.description)}</p>
+    <p><strong>${dataset.rows.toLocaleString()} rows · JSON</strong></p>
+    <p class="muted">${html(dataset.source)}</p>
+    <p><strong>Best for:</strong> ${html(dataset.bestFor)}</p>
+    <div class="button-row">
+      <button class="primary" data-product-action="load-showcase" data-showcase-file="${html(dataset.file)}" aria-label="Load ${html(dataset.title)}">Load dataset</button>
+      <button data-product-action="show-recipe" data-showcase-file="${html(dataset.file)}" aria-label="View ${html(dataset.title)} demo recipe">View demo recipe</button>
+    </div>
+  </article>`).join("");
 }
 
 function renderWorkflowChecklist(container, onboarding) {
@@ -397,7 +427,7 @@ function renderSchema(state) {
   const active = state.workspace.dataSources.find((source) => source.id === state.workspace.active.dataSourceId);
   elements().dataStatus.textContent = databaseLabel(state);
   if (!active) {
-    elements().schemaView.innerHTML = `<div class="empty-state"><h3>Add your first dataset</h3><p>Load a local CSV, JSON, NDJSON, or Parquet file, or import a direct URL.</p><p>Your data stays in this browser unless you explicitly use an external AI action.</p></div>`;
+    elements().schemaView.innerHTML = `<div class="empty-state"><h3>Add your first dataset</h3><p>Load a local CSV, JSON, NDJSON, or Parquet file, or import a direct URL.</p><p>Your data stays in this browser unless you explicitly use an external AI action.</p><button data-product-action="browse-showcase">Explore a showcase dataset</button></div>`;
     renderDataPreview(null);
     return;
   }
@@ -725,12 +755,13 @@ function helpContent(topic) {
   const commonFooter = `<p><a href="${html(topic.path)}" target="_blank" rel="noreferrer">Open local documentation file</a></p>`;
   const content = {
     "getting-started": `<h3>Getting started</h3><p>Use the main workflow: add data, inspect columns, run SQL, build a chart, then save it for dashboards or reports.</p>`,
-    showcase: `<h3>Showcase examples</h3><p>These public demonstration datasets use the normal JSON import workflow. Loading an example prepares it in Data; review the proposed table and press Import.</p>
+    showcase: `<h3>Showcase examples</h3><p>Browse all five historical demonstration datasets and their recipes. Each file loads through the normal JSON import workflow.</p>
+      <button class="primary" data-product-action="browse-showcase">Browse showcase datasets</button>
       <div class="showcase-list">${SHOWCASE_DATASETS.map((dataset) => `<article class="object-item">
         <strong>${html(dataset.title)}</strong>
         <p>${html(dataset.description)}</p>
         <small>${dataset.rows.toLocaleString()} rows · ${html(dataset.bestFor)}<br>${html(dataset.source)}</small>
-        <button data-product-action="load-showcase" data-showcase-file="${html(dataset.file)}" data-testid="showcase-load-${html(dataset.file.replace(".json", ""))}">Prepare example</button>
+        <button data-product-action="show-recipe" data-showcase-file="${html(dataset.file)}">View recipe</button>
       </article>`).join("")}</div>
       <p class="muted">Demonstration data contains no private workspace data. QuackViz does not upload it.</p>`,
     "importing-data": `<h3>Importing data</h3><p>Choose or drop CSV, JSON, NDJSON/JSONL, or Parquet files. URL imports are explicit and depend on the remote server allowing browser CORS access.</p>`,

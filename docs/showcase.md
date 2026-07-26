@@ -1,6 +1,6 @@
 # QuackViz Showcase
 
-Last verified: 2026-07-25 with QuackViz 1.0.0-beta.2.
+Last verified: 2026-07-25 with QuackViz 1.0.0-beta.3.
 
 Open **Help > Showcase examples** to prepare any dataset in the normal Data import flow. Review the detected JSON format and proposed table name, then press **Import**. The gallery does not bypass validation or silently create saved work.
 
@@ -36,4 +36,4 @@ The complete original cookbook and source-pack notes are retained under `example
 
 All five files are ordinary JSON arrays and are validated through the normal import path. Automated release coverage imports Iris data for real line/bar ECharts rendering and Montreal data for real point, clustered, proportional-symbol, and category-colored MapLibre rendering across Chromium, Firefox, and Playwright WebKit.
 
-The requested multi-view hero dashboard and showcase report are not release-qualified. Their scatter/bubble, heatmap, KPI-row, and credible global choropleth requirements exceed the current stable product surface, so QuackViz remains `1.0.0-beta.2`.
+The requested multi-view hero dashboard and showcase report are not release-qualified. Their scatter/bubble, heatmap, KPI-row, and credible global choropleth requirements exceed the current stable product surface, so QuackViz remains `1.0.0-beta.3`.

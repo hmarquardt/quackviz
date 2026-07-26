@@ -3,6 +3,7 @@ import { APP_VERSION, BUILD_DATE, RELEASE_CHANNEL } from "./constants.js";
 export const ONBOARDING_STORAGE_KEYS = {
   welcomeDismissed: "quackviz.onboarding.welcomeDismissed",
   checklistDismissed: "quackviz.onboarding.checklistDismissed",
+  sidebarCollapsed: "quackviz.sidebar.collapsed",
 };
 
 export const HELP_TOPICS = [
@@ -23,11 +24,11 @@ export const HELP_TOPICS = [
 ];
 
 export const SHOWCASE_DATASETS = [
-  { file: "01_global_development_odyssey.json", title: "Global Development Odyssey", rows: 1704, description: "Historical country development indicators through 2007.", bestFor: "Line charts, ranked bars, and country point maps.", source: "Transformed Gapminder demonstration data" },
-  { file: "02_montreal_mobility_constellation.json", title: "Montreal Mobility Constellation", rows: 249, description: "Montreal car-sharing availability hotspots.", bestFor: "Clustered, proportional-symbol, and category point maps.", source: "Transformed Plotly Montreal car-sharing data" },
-  { file: "03_tech_stock_time_machine.json", title: "Tech Stock Time Machine", rows: 630, description: "Demonstration technology-stock index series.", bestFor: "Multi-series trends and ranked drawdowns.", source: "Transformed Plotly stock index demonstration data" },
-  { file: "04_iris_morphology_lab.json", title: "Iris Morphology Lab", rows: 150, description: "Fisher iris measurements with derived morphology fields.", bestFor: "Category comparisons and numerical summaries.", source: "Transformed Fisher/UCI Iris data" },
-  { file: "05_wind_rose_observatory.json", title: "Wind Rose Observatory", rows: 128, description: "Wind direction and strength frequencies.", bestFor: "Direction rankings and grouped bar analysis.", source: "Transformed Plotly wind demonstration data" },
+  { file: "01_global_development_odyssey.json", title: "Global Development Odyssey", rows: 1704, description: "Historical country development indicators through 2007.", bestFor: "Line charts, vertical bars, and country point maps.", source: "Transformed Gapminder demonstration data", recipe: { title: "Population by country centroid", sql: "SELECT country, continent, latitude, longitude, population FROM table_01_global_development_odyssey WHERE year = 2007", visualization: "Proportional-symbol point map", fields: "Latitude: latitude · Longitude: longitude · Size: population · Color: continent" } },
+  { file: "02_montreal_mobility_constellation.json", title: "Montreal Mobility Constellation", rows: 249, description: "Montreal car-sharing availability hotspots.", bestFor: "Clustered, proportional-symbol, and category point maps.", source: "Transformed Plotly Montreal car-sharing data", recipe: { title: "Montreal availability hotspots", sql: "SELECT hotspot_id, latitude, longitude, car_hours, peak_period FROM table_02_montreal_mobility_constellation", visualization: "Clustered or proportional-symbol point map", fields: "Latitude: latitude · Longitude: longitude · Size: car_hours · Color: peak_period" } },
+  { file: "03_tech_stock_time_machine.json", title: "Tech Stock Time Machine", rows: 630, description: "Demonstration technology-stock index series.", bestFor: "Multi-series line trends and vertical bars.", source: "Transformed Plotly stock index demonstration data", recipe: { title: "Technology index history", sql: "SELECT date, symbol, index_value FROM table_03_tech_stock_time_machine ORDER BY date, symbol", visualization: "Multi-series line chart", fields: "X: date · Y: index_value · Series: symbol" } },
+  { file: "04_iris_morphology_lab.json", title: "Iris Morphology Lab", rows: 150, description: "Fisher iris measurements with derived morphology fields.", bestFor: "Species average vertical bars and numerical summaries.", source: "Transformed Fisher/UCI Iris data", recipe: { title: "Average petal length by species", sql: "SELECT species, AVG(petal_length) AS average_petal_length FROM table_04_iris_morphology_lab GROUP BY species ORDER BY species", visualization: "Vertical bar chart", fields: "X: species · Y: average_petal_length" } },
+  { file: "05_wind_rose_observatory.json", title: "Wind Rose Observatory", rows: 128, description: "Wind direction and strength frequencies.", bestFor: "Direction rankings and strength-grouped vertical bars.", source: "Transformed Plotly wind demonstration data", recipe: { title: "Wind frequency by direction", sql: "SELECT direction, SUM(frequency) AS frequency FROM table_05_wind_rose_observatory GROUP BY direction ORDER BY frequency DESC", visualization: "Vertical bar chart", fields: "X: direction · Y: frequency" } },
 ];
 
 export const KEYBOARD_SHORTCUTS = [
@@ -74,6 +75,7 @@ export function recentItems(workspace, limit = 8) {
 export function buildCommandItems(workspace) {
   const commands = [
     { id: "cmd-add-data", type: "Command", label: "Add data", tab: "data", keywords: ["import", "file", "url"] },
+    { id: "cmd-showcase", type: "Command", label: "Browse showcase datasets", action: "showcase", keywords: ["examples", "demo"] },
     { id: "cmd-run-sql", type: "Command", label: "Run SQL", tab: "sql", keywords: ["query", "analyze"] },
     { id: "cmd-new-dashboard", type: "Command", label: "New dashboard", tab: "dashboard", keywords: ["cards"] },
     { id: "cmd-new-report", type: "Command", label: "New report", tab: "report", keywords: ["narrative"] },
@@ -81,6 +83,7 @@ export function buildCommandItems(workspace) {
     { id: "cmd-help", type: "Command", label: "Open Help", action: "help", keywords: ["docs", "shortcuts"] },
     { id: "cmd-about", type: "Command", label: "About QuackViz", action: "about", keywords: ["version", "beta"] },
   ];
+  commands.push(...SHOWCASE_DATASETS.map((dataset) => ({ id: `cmd-showcase-${dataset.file}`, type: "Showcase", label: `Load ${dataset.title}`, action: "showcase-dataset", showcaseFile: dataset.file, keywords: ["example", "preview"] })));
   const artifacts = recentItems(workspace, 30).map((item) => ({
     id: `artifact-${item.id}`,
     type: item.type,

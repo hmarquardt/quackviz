@@ -9,8 +9,14 @@ QuackViz Beta is a static, browser-local analytical workspace for loading local 
 Five import-ready public demonstration datasets, their attribution, and a short evaluation workflow are documented in the [showcase guide](docs/showcase.md).
 For a complete illustrated path from JSON import to a real dashboard map, follow the [five-minute Montreal Mobility tutorial](docs/tutorials/montreal-mobility.md).
 
-Current version: `1.0.0-beta.4`
+Current version: `1.0.0-beta.5`
 Build date: `2026-07-26`
+
+## Intelligent JSON import
+
+Nested JSON documents can be reviewed as deterministic candidate tables before import. QuackViz discovers repeated object arrays, proposes parent-child relationships, supports preserve/flatten/relational/hybrid/raw strategies, and imports only an approved declarative plan. AI modeling is optional and receives structure-only context by default.
+
+See [Intelligent JSON Import](docs/intelligent-json-import.md) for examples, privacy behavior, provenance, and current limitations.
 
 ## See QuackViz
 

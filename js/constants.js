@@ -1,4 +1,4 @@
-export const APP_VERSION = "1.0.0-beta.4";
+export const APP_VERSION = "1.0.0-beta.5";
 export const BUILD_DATE = "2026-07-26";
 export const RELEASE_CHANNEL = "beta";
 export const WORKSPACE_SCHEMA_VERSION = 1;

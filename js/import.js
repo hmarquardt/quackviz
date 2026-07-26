@@ -10,6 +10,7 @@ const SQL_KEYWORDS = new Set([
 const FORMAT_BY_EXTENSION = {
   csv: "csv",
   json: "json",
+  geojson: "json",
   ndjson: "ndjson",
   jsonl: "ndjson",
   parquet: "parquet",
@@ -236,6 +237,7 @@ export async function importRegisteredSource({ virtualName, tableName, format, m
       available: true,
       importOptions: { header: options.header !== false, replace },
       warnings: metadata.warnings || [],
+      jsonModeling: metadata.jsonModeling || null,
     };
   } catch (error) {
     await cleanupTable(safeName);

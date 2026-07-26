@@ -4,7 +4,7 @@
   "theme": "light",
   "dataset": "02_montreal_mobility_constellation.json",
   "expectedRows": 249,
-  "appVersion": "1.0.0-beta.4",
+  "appVersion": "1.0.0-beta.5",
   "generatedBy": "Playwright",
   "files": [
     "01-open-data.png",

@@ -5,7 +5,8 @@ import { AI_CONTRACTS } from "./ai-contracts.js";
 import { makeInteraction } from "./ai-history.js";
 import { proposalToBuilderState, saveAiProposal, markRejected } from "./ai-proposals.js";
 import { explainSql, previewSql as previewAiSql, validateSqlSafety } from "./ai-sql-safety.js";
-import { validateAiResponse, validateRepair } from "./ai-validate.js";
+import { parseAiJson, validateAiResponse, validateRepair } from "./ai-validate.js";
+import { requestOpenRouterJson } from "./ai-client.js";
 import { addCard, addDashboard, createDashboard, deleteDashboard as deleteDashboardModel, duplicateCard, duplicateDashboard as duplicateDashboardModel, findDashboard, moveCard, removeCard, resizeCard, updateDashboard } from "./dashboard.js";
 import { createSnapshotHtml, exportDashboardPackage, importDashboardPackage } from "./dashboard-export.js";
 import { getDashboardRunnerStatus, invalidateDashboardCache, refreshCard, refreshDashboard as runDashboardRefresh } from "./dashboard-runner.js";
@@ -19,6 +20,7 @@ import { buildBreadcrumb, drillDown, drillUp } from "./drilldown.js";
 import { compileParameterizedSql } from "./parameters.js";
 import { initializeDatabase, executeSql, registerFileBuffer, tableExists } from "./db.js";
 import { detectImportFormat, generateSafeTableName, importFromUrl, importLocalFile, importRegisteredSource, loadIncludedSalesSample, validateImportUrl } from "./import.js";
+import { buildJsonModelingAiContext, createJsonImportPlan, discoverJsonStructure, extractJsonTables, validateAiJsonModelingProposal } from "./json-modeling.js";
 import { exportMapVisualizationPackage } from "./map-export.js";
 import { createPortablePackage, inspectPortablePackage, validatePortablePackage, verifyPortablePackageIntegrity } from "./package.js";
 import { createStandaloneHtml, runtimeHarnessLoad } from "./standalone-runtime.js";
@@ -457,6 +459,16 @@ function bindEvents() {
   el.dataCsvHeader.addEventListener("change", () => { state.dataImport.options.header = el.dataCsvHeader.checked; notify(); });
   el.dataImportConfirm.addEventListener("click", importPreparedData);
   el.dataImportCancel.addEventListener("click", cancelImport);
+  el.jsonImportStrategy.addEventListener("change", rebuildJsonPlan);
+  el.jsonAiContextMode.addEventListener("change", () => {
+    state.dataImport.jsonModeling.contextMode = el.jsonAiContextMode.value;
+    notify();
+  });
+  el.jsonCandidateTables.addEventListener("change", updateJsonPlanFromControls);
+  el.jsonAskAi.addEventListener("click", requestAiJsonPlan);
+  el.jsonImportApprove.addEventListener("click", importApprovedJsonPlan);
+  el.jsonModelCancel.addEventListener("click", () => el.jsonModelDialog.close());
+  el.jsonAiPlan.addEventListener("click", handleJsonAiPlanAction);
   el.runSql.addEventListener("click", runEditorSql);
   el.sqlEditor.addEventListener("keydown", (event) => {
     if ((event.ctrlKey || event.metaKey) && event.key === "Enter") runEditorSql();
@@ -584,7 +596,7 @@ async function restoreTableAvailability() {
   }
 }
 
-function prepareFileImport(files) {
+async function prepareFileImport(files) {
   if (!files.length) return;
   const existing = state.workspace.dataSources.map((source) => source.tableName);
   const first = files[0];
@@ -604,6 +616,181 @@ function prepareFileImport(files) {
     cancelled: false,
   };
   notify();
+  if (files.length === 1 && detected.format === "json") {
+    await prepareIntelligentJsonImport(first).catch((error) => {
+      updateImportStatus({ stage: "error", message: "JSON structure could not be analyzed.", error: error.message });
+      addError("import", "json-structure-discovery", error);
+    });
+  }
+}
+
+async function prepareIntelligentJsonImport(file) {
+  const document = JSON.parse(await file.text());
+  const payload = await workerManager.run("discover-json-structure", { document }, {
+    taskTimeoutMs: 30_000,
+    onProgress: (event) => updateImportStatus({ stage: "discovering", message: event.stage, progress: event.progress }),
+  }).catch(() => ({ profile: discoverJsonStructure(document) }));
+  const profile = payload.profile;
+  if (profile.rootType === "array-of-records" && profile.candidateTables.length === 1) return;
+  state.dataImport.jsonModeling = {
+    document,
+    file,
+    profile,
+    plan: createJsonImportPlan(profile, { strategy: "relational" }),
+    aiProposal: null,
+    aiValidation: null,
+    contextMode: "structure-only",
+  };
+  updateImportStatus({ stage: "modeling", message: `Review ${profile.candidateTables.length} candidate tables before import.`, progress: null });
+  notify();
+  elements().jsonModelDialog.showModal();
+}
+
+function rebuildJsonPlan() {
+  const modeling = state.dataImport.jsonModeling;
+  modeling.plan = createJsonImportPlan(modeling.profile, { strategy: elements().jsonImportStrategy.value });
+  modeling.aiProposal = null;
+  modeling.aiValidation = null;
+  notify();
+}
+
+function updateJsonPlanFromControls() {
+  const plan = state.dataImport.jsonModeling.plan;
+  for (const table of plan.tables) {
+    const include = elements().jsonCandidateTables.querySelector(`[data-json-table-include="${CSS.escape(table.id)}"]`);
+    const name = elements().jsonCandidateTables.querySelector(`[data-json-table-name="${CSS.escape(table.id)}"]`);
+    table.include = Boolean(include?.checked);
+    table.name = generateSafeTableName(name?.value || table.name);
+  }
+  notify();
+}
+
+async function requestAiJsonPlan() {
+  updateJsonPlanFromControls();
+  const modeling = state.dataImport.jsonModeling;
+  const context = buildJsonModelingAiContext(modeling.profile, modeling.plan, { mode: elements().jsonAiContextMode.value });
+  try {
+    const response = await requestOpenRouterJson({
+      apiKey: getOpenRouterApiKey(),
+      model: state.workspace.settings.ai.model,
+      messages: [
+        { role: "system", content: "Return only a declarative quackviz-ai-json-modeling-plan JSON object. Never return SQL, code, or fields absent from the supplied structure." },
+        { role: "user", content: JSON.stringify(context) },
+      ],
+      temperature: 0.1,
+      maxTokens: state.workspace.settings.ai.maxOutputTokens,
+      timeoutMs: state.workspace.settings.ai.timeoutMs,
+    });
+    const parsed = parseAiJson(response.content);
+    if (!parsed.ok) throw parsed.error;
+    modeling.aiProposal = parsed.value;
+    modeling.aiValidation = validateAiJsonModelingProposal(parsed.value, modeling.profile, modeling.plan);
+    notify();
+  } catch (error) {
+    modeling.aiValidation = { valid: false, errors: [{ path: "$", message: error.message }] };
+    notify();
+  }
+}
+
+function handleJsonAiPlanAction(event) {
+  const control = event.target.closest("[data-json-ai-action]");
+  const action = control?.dataset.jsonAiAction;
+  if (!action) return;
+  const modeling = state.dataImport.jsonModeling;
+  if (action === "reject") {
+    modeling.aiProposal = null;
+    modeling.aiValidation = null;
+  } else if (action === "accept-all" && modeling.aiValidation?.valid) {
+    modeling.plan = {
+      ...modeling.aiProposal.proposedPlan,
+      contract: "quackviz-json-import-plan",
+      contractVersion: 1,
+      sourceProfileId: modeling.profile.id,
+      structuralFingerprint: modeling.profile.structuralFingerprint,
+      provenance: {
+        generatedBy: "ai-assisted",
+        model: state.workspace.settings.ai.model,
+        sampleValuesShared: elements().jsonAiContextMode.value !== "structure-only",
+        approvedAt: null,
+      },
+    };
+    modeling.aiValidation = null;
+  } else if (action === "accept-rename" && modeling.aiValidation?.valid) {
+    const suggestion = modeling.aiValidation.diff.tablesRenamed.find((item) => item.id === control.dataset.tableId);
+    const table = modeling.plan.tables.find((item) => item.id === suggestion?.id);
+    if (table && suggestion) {
+      table.name = suggestion.to;
+      modeling.plan.provenance = {
+        generatedBy: "ai-assisted",
+        model: state.workspace.settings.ai.model,
+        sampleValuesShared: elements().jsonAiContextMode.value !== "structure-only",
+        approvedAt: null,
+      };
+    }
+  }
+  notify();
+}
+
+async function importApprovedJsonPlan() {
+  updateJsonPlanFromControls();
+  const modeling = state.dataImport.jsonModeling;
+  const plan = structuredClone(modeling.plan);
+  plan.provenance.approvedAt = nowIso();
+  const extracted = extractJsonTables(modeling.document, plan, modeling.profile);
+  const imported = [];
+  try {
+    updateImportStatus({ stage: "extracting", message: `Extracting ${extracted.length} approved tables.`, progress: 0.2, error: "" });
+    await createCheckpoint(state.recovery, state.workspace, "pre-json-model-import");
+    for (const [index, table] of extracted.entries()) {
+      const virtualName = `/${uid("json_table")}.json`;
+      const buffer = new TextEncoder().encode(JSON.stringify(table.rows)).buffer;
+      await registerFileBuffer(virtualName, buffer);
+      const source = await importRegisteredSource({
+        virtualName,
+        tableName: table.name,
+        format: "json",
+        metadata: {
+          name: table.name,
+          sourceType: "file",
+          fileName: modeling.file.name,
+          fileType: "json",
+          fileSize: modeling.file.size,
+          jsonModeling: {
+            rootType: modeling.profile.rootType,
+            structuralFingerprint: modeling.profile.structuralFingerprint,
+            sourcePath: table.sourcePath,
+            profileVersion: modeling.profile.contractVersion,
+            planVersion: plan.contractVersion,
+            plan,
+            relationships: plan.relationships,
+            provenance: plan.provenance,
+          },
+        },
+        options: { replace: false, existingTableNames: [...state.workspace.dataSources.map((source) => source.tableName), ...imported.map((source) => source.tableName)] },
+        onProgress: (progress) => updateImportStatus({ ...progress, message: `Table ${index + 1}/${extracted.length}: ${progress.stage}` }),
+      });
+      imported.push(source);
+    }
+    for (const source of imported) {
+      updateWorkspace((workspace) => addOrUpdateDataSource(workspace, source));
+      markTableLoaded(source.tableName, true);
+    }
+    const last = imported.at(-1);
+    if (last) {
+      setActive({ dataSourceId: last.id });
+      elements().sqlEditor.value = `SELECT * FROM ${escapeIdent(last.tableName)} LIMIT 100;`;
+      elements().queryName.value = `${last.name} preview`;
+    }
+    await saveWorkspace(state.workspace);
+    await createCheckpoint(state.recovery, state.workspace, "post-json-model-import");
+    updateImportStatus({ stage: "complete", message: `Imported ${imported.length} related tables.`, progress: 1 });
+    elements().jsonModelDialog.close();
+    notify();
+  } catch (error) {
+    await Promise.allSettled(imported.map((source) => executeSql(`DROP TABLE IF EXISTS ${escapeIdent(source.tableName)}`)));
+    updateImportStatus({ stage: "error", message: "Related-table import failed. No completed plan was saved.", error: error.message });
+    addError("import", "json-model-import", error);
+  }
 }
 
 function prepareUrlImport() {
@@ -1691,7 +1878,9 @@ async function refreshAiModels() {
   state.ai.modelList = normalizeAndSortModels(result.models, { selectedModelId: selectedModel, favoriteModelIds: state.ai.favoriteModelIds, recentModelIds: state.ai.recentModelIds });
   state.ai.modelListRefreshedAt = result.refreshedAt;
   state.ai.modelListError = result.error?.message || null;
-  saveAiModelCache({ models: result.models, refreshedAt: state.ai.modelListRefreshedAt });
+  const cacheResult = saveAiModelCache({ models: result.models, refreshedAt: state.ai.modelListRefreshedAt });
+  state.ai.modelCacheError = cacheResult.saved ? null : cacheResult.error?.message || "Model catalog cache failed.";
+  if (!cacheResult.saved) addStatus("ai", "model-cache", "Models are available for this session, but the browser could not cache the catalog.", "warning");
   addStatus("ai", "refresh-models", result.error ? "OpenRouter model refresh failed; fallback models are shown." : `Models refreshed. ${result.models.length} models available.`, result.error ? "warning" : "success");
   notify();
 }
@@ -1978,6 +2167,28 @@ async function runSelfTest() {
   });
   await step("Generate safe table name", () => {
     if (generateSafeTableName("123-results.parquet") !== "table_123_results") throw new Error("Unexpected table name.");
+  });
+  let jsonProfile;
+  let jsonPlan;
+  const nestedDocument = { groups: [{ group_id: 1, children: [{ child_id: 10 }, { child_id: 11 }] }] };
+  await step("Discover nested JSON tables", () => {
+    jsonProfile = discoverJsonStructure(nestedDocument);
+    if (!jsonProfile.candidateTables.some((candidate) => candidate.suggestedName === "children")) throw new Error("Child table was not discovered.");
+  });
+  await step("Infer JSON relationships", () => {
+    if (!jsonProfile.relationships.length) throw new Error("Parent-child relationship was not inferred.");
+  });
+  await step("Create deterministic JSON import plan", () => {
+    jsonPlan = createJsonImportPlan(jsonProfile, { strategy: "relational" });
+    if (jsonPlan.provenance.generatedBy !== "deterministic") throw new Error("Unexpected plan provenance.");
+  });
+  await step("Extract related JSON tables", () => {
+    const tables = extractJsonTables(nestedDocument, jsonPlan, jsonProfile);
+    if (!tables.some((table) => table.rows.length === 2 && table.rows[0].group_id === 1)) throw new Error("Parent context was not inherited.");
+  });
+  await step("Exclude JSON values from default AI context", () => {
+    const context = buildJsonModelingAiContext(jsonProfile, jsonPlan);
+    if (JSON.stringify(context).includes("child_id\":10")) throw new Error("Raw values leaked into structure-only context.");
   });
   await step("Register local test buffer", async () => {
     await registerFileBuffer("/qv_self_import_buffer.csv", new TextEncoder().encode("id,name\n1,A\n2,B\n").buffer);

@@ -140,6 +140,7 @@ function hydrateDataSource(source) {
     available: false,
     importOptions: source.importOptions || {},
     warnings: Array.isArray(source.warnings) ? source.warnings : [],
+    jsonModeling: source.jsonModeling && typeof source.jsonModeling === "object" ? deepClone(source.jsonModeling) : null,
   };
 }
 

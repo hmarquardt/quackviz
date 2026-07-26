@@ -1,5 +1,26 @@
 # Changelog
 
+## 1.0.0-beta.5 - 2026-07-26
+
+### Added
+
+- Generic bounded structural discovery for nested JSON, API envelopes, primitive and mixed arrays, and GeoJSON.
+- Versioned structural-profile, import-plan, and AI-modeling contracts.
+- Deterministic preserve, flatten, related-table, hybrid, and raw-document import strategies.
+- Parent-child key propagation, source-path provenance, structural fingerprints, and map-ready Point GeoJSON coordinates.
+- Optional structure-only AI modeling with exact-context preview, proposal validation, structured diffs, and selective rename approval.
+
+### Fixed
+
+- Nested JSON no longer depends on top-level record arrays.
+- Partial related-table imports are cleaned up before a failed plan is reported.
+- OpenRouter model-cache quota failures are nonfatal and do not block JSON discovery or import.
+
+### Known limitations
+
+- Fine-grained key, inheritance, and per-field editing is not yet a complete visual workflow.
+- External JSON Schema references, domain templates, and AI-derived columns remain unavailable.
+
 ## 1.0.0-beta.4 - 2026-07-26
 
 ### Fixed

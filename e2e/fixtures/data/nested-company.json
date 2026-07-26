@@ -1,0 +1,1 @@
+{"company":{"name":"Example Corp","departments":[{"department_id":10,"name":"Engineering","employees":[{"employee_id":101,"name":"Ada"},{"employee_id":102,"name":"Lin"}]},{"department_id":20,"name":"Research","employees":[{"employee_id":103,"name":"Sam"}]}]}}

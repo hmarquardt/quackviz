@@ -1,0 +1,1 @@
+{"orders":[{"order_id":"o1","customer":{"name":"A","email":"a@example.test"},"items":[{"sku":"x","quantity":2},{"sku":"y","quantity":1}]},{"order_id":"o2","customer":{"name":"B","email":"b@example.test"},"items":[{"sku":"z","quantity":3}]}]}

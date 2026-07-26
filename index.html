@@ -442,6 +442,40 @@
       <div id="recipeContent" data-testid="recipe-content"></div>
       <div class="button-row"><button id="recipeOpenSql" class="primary">Open SQL in Analyze</button><button id="closeRecipe">Close</button></div>
     </dialog>
+    <dialog id="jsonModelDialog" class="product-dialog json-model-dialog" data-testid="json-model-dialog" aria-labelledby="jsonModelTitle">
+      <h2 id="jsonModelTitle">Intelligent JSON import</h2>
+      <p>QuackViz first analyzes the document locally. AI can optionally suggest a cleaner table model, but nothing is imported until you review and approve the plan.</p>
+      <div id="jsonModelSummary" class="status" data-testid="json-model-summary"></div>
+      <label>Import strategy
+        <select id="jsonImportStrategy" data-testid="json-import-strategy">
+          <option value="preserve">Preserve nested JSON</option>
+          <option value="flatten">Flatten selected objects</option>
+          <option value="relational" selected>Split repeated arrays into related tables</option>
+          <option value="hybrid">Hybrid</option>
+          <option value="raw">Single raw document</option>
+        </select>
+      </label>
+      <div id="jsonCandidateTables" class="json-candidate-list" data-testid="json-candidate-tables"></div>
+      <section class="panel">
+        <h3>Optional AI modeling</h3>
+        <label>AI context
+          <select id="jsonAiContextMode">
+            <option value="structure-only">Structure only</option>
+            <option value="redacted-examples">Structure plus redacted examples</option>
+          </select>
+        </label>
+        <details>
+          <summary>Preview exact AI context</summary>
+          <pre id="jsonAiContextPreview" class="code-preview" data-testid="json-ai-context-preview"></pre>
+        </details>
+        <button id="jsonAskAi" type="button" data-testid="json-ask-ai">Ask AI to propose table structure</button>
+        <div id="jsonAiPlan" data-testid="json-ai-plan"></div>
+      </section>
+      <div class="button-row">
+        <button id="jsonImportApprove" class="primary" data-testid="json-import-approve">Approve and import</button>
+        <button id="jsonModelCancel" type="button">Cancel</button>
+      </div>
+    </dialog>
     <dialog id="commandPalette" class="product-dialog command-palette" data-testid="command-palette" aria-labelledby="commandTitle">
       <h2 id="commandTitle">Search QuackViz</h2>
       <label>Search commands, saved work, and help <input id="commandInput" data-testid="command-input" autocomplete="off"></label>

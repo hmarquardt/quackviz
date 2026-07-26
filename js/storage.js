@@ -107,7 +107,12 @@ export function loadAiModelCache() {
 }
 
 export function saveAiModelCache(cache) {
-  localStorage.setItem(STORAGE.aiModelCache, JSON.stringify(cache));
+  try {
+    localStorage.setItem(STORAGE.aiModelCache, JSON.stringify(cache));
+    return { saved: true, error: null };
+  } catch (error) {
+    return { saved: false, error };
+  }
 }
 
 export function loadAiModelPreferences() {

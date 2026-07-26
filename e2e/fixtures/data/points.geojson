@@ -1,0 +1,1 @@
+{"type":"FeatureCollection","features":[{"type":"Feature","properties":{"site":"North","category":"A"},"geometry":{"type":"Point","coordinates":[-73.5,45.5]}},{"type":"Feature","properties":{"site":"South","category":"B"},"geometry":{"type":"Point","coordinates":[-73.6,45.4]}}]}

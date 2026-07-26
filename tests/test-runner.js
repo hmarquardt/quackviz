@@ -25,9 +25,10 @@ import { operationalTests } from "./operational.test.js";
 import { importTests } from "./import.test.js";
 import { tests as productTests } from "./product.test.js";
 import { aiModelTests } from "./ai-models.test.js";
+import { jsonModelingTests } from "./json-modeling.test.js";
 
 const resultsEl = document.getElementById("results");
-const tests = [...vizSpecTests, ...vizCompilerTests, ...workspaceTests, ...importTests, ...productTests, ...aiModelTests, ...aiContractTests, ...aiSqlSafetyTests, ...aiContextTests, ...aiProposalTests, ...versionTests, ...dashboardModelTests, ...dashboardFilterTests, ...dashboardExportTests, ...dashboardRunnerTests, ...aiDashboardTests, ...reportModelTests, ...reportRunnerTests, ...reportExportTests, ...aiReportTests, ...mapSpatialTests, ...mapSpecTests, ...mapRendererTests, ...aiMapTests, ...interactionTests, ...packageTests, ...operationalTests];
+const tests = [...vizSpecTests, ...vizCompilerTests, ...workspaceTests, ...importTests, ...jsonModelingTests, ...productTests, ...aiModelTests, ...aiContractTests, ...aiSqlSafetyTests, ...aiContextTests, ...aiProposalTests, ...versionTests, ...dashboardModelTests, ...dashboardFilterTests, ...dashboardExportTests, ...dashboardRunnerTests, ...aiDashboardTests, ...reportModelTests, ...reportRunnerTests, ...reportExportTests, ...aiReportTests, ...mapSpatialTests, ...mapSpecTests, ...mapRendererTests, ...aiMapTests, ...interactionTests, ...packageTests, ...operationalTests];
 const results = [];
 
 for (const test of tests) {

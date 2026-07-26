@@ -13,6 +13,7 @@ import { html, safeString, truncate } from "./utils.js";
 import { HELP_TOPICS, KEYBOARD_SHORTCUTS, SHOWCASE_DATASETS, aboutMetadata, buildCommandItems, createOnboardingState, recentItems, searchCommandItems } from "./product.js";
 import { visibleToasts } from "./state.js";
 import { filterModels, modelOptionLabel, modelProviders, normalizeAndSortModels } from "./ai-models.js";
+import { buildJsonModelingAiContext } from "./json-modeling.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -181,6 +182,16 @@ export function elements() {
     recipeContent: $("recipeContent"),
     recipeOpenSql: $("recipeOpenSql"),
     closeRecipe: $("closeRecipe"),
+    jsonModelDialog: $("jsonModelDialog"),
+    jsonModelSummary: $("jsonModelSummary"),
+    jsonImportStrategy: $("jsonImportStrategy"),
+    jsonCandidateTables: $("jsonCandidateTables"),
+    jsonAiContextMode: $("jsonAiContextMode"),
+    jsonAiContextPreview: $("jsonAiContextPreview"),
+    jsonAskAi: $("jsonAskAi"),
+    jsonAiPlan: $("jsonAiPlan"),
+    jsonImportApprove: $("jsonImportApprove"),
+    jsonModelCancel: $("jsonModelCancel"),
     aiStatus: $("aiStatus"),
     aiEnabled: $("aiEnabled"),
     openRouterKey: $("openRouterKey"),
@@ -388,7 +399,39 @@ function renderImportWorkspace(state) {
   const error = status.error ? `<p class="error-text">${html(status.error)}</p>` : "";
   el.dataImportStatus.innerHTML = `<strong>${html(message)}</strong><p>${html(selected)} · ${html(detected)}${progress}</p>${warning}${error}`;
   el.dataImportConfirm.disabled = !dataImport.pendingFiles?.length && dataImport.source !== "url";
+  renderJsonModeling(state);
   renderStarterQueries(state);
+}
+
+function renderJsonModeling(state) {
+  const el = elements();
+  const modeling = state.dataImport.jsonModeling;
+  const profile = modeling?.profile;
+  const plan = modeling?.plan;
+  if (!profile || !plan) return;
+  el.jsonModelSummary.textContent = `${profile.rootType} · ${profile.candidateTables.length} candidate tables · ${profile.relationships.length} relationships · maximum depth ${profile.statistics.maximumDepth}${profile.statistics.sampled ? " · sampled estimates" : ""}`;
+  if (document.activeElement !== el.jsonImportStrategy) el.jsonImportStrategy.value = plan.strategy;
+  el.jsonCandidateTables.innerHTML = plan.tables.map((table) => {
+    const candidate = profile.candidateTables.find((item) => item.id === table.id);
+    const key = table.key.mode === "generated" ? "generated key" : `${table.key.fields.join(" + ")} key`;
+    const sensitive = candidate.fields.filter((field) => field.sensitive).length;
+    return `<article class="json-candidate">
+      <input type="checkbox" data-json-table-include="${html(table.id)}" aria-label="Include ${html(table.name)}" ${table.include ? "checked" : ""}>
+      <label>Table name <input value="${html(table.name)}" data-json-table-name="${html(table.id)}"></label>
+      <strong>${candidate.rowCount}${candidate.estimated ? " estimated" : ""} rows · ${candidate.fields.length} fields · ${html(key)}</strong>
+      <p class="muted">${html(candidate.path)}${sensitive ? ` · ${sensitive} sensitive-field warning${sensitive === 1 ? "" : "s"}` : ""}</p>
+    </article>`;
+  }).join("");
+  el.jsonAskAi.disabled = !state.workspace.settings.ai.enabled || !state.ai.apiKeyConfigured;
+  el.jsonAiContextPreview.textContent = JSON.stringify(buildJsonModelingAiContext(profile, plan, { mode: modeling.contextMode || "structure-only" }), null, 2);
+  el.jsonAiPlan.innerHTML = modeling.aiValidation
+    ? modeling.aiValidation.valid
+      ? `<p class="success-text">Valid AI-assisted plan. Review the structured differences before accepting it.</p>
+        ${modeling.aiValidation.diff.tablesRenamed.map((item) => `<p>${html(item.from)} → ${html(item.to)} <button type="button" data-json-ai-action="accept-rename" data-table-id="${html(item.id)}">Accept this rename</button></p>`).join("")}
+        <pre>${html(JSON.stringify(modeling.aiValidation.diff, null, 2))}</pre>
+        <div class="button-row"><button type="button" data-json-ai-action="accept-all">Accept proposed plan</button><button type="button" data-json-ai-action="reject">Reject proposal</button></div>`
+      : `<p class="error-text">AI proposal rejected: ${html(modeling.aiValidation.errors.map((item) => item.message).join(" "))}</p>`
+    : `<p class="muted">${el.jsonAskAi.disabled ? "Enable AI and add an OpenRouter key to request optional modeling suggestions." : "Only the structural profile is shared by default."}</p>`;
 }
 
 function renderStarterQueries(state) {
@@ -972,7 +1015,9 @@ function renderAi(state) {
   el.favoriteAiModel.setAttribute("aria-label", `${favorite ? "Unfavorite" : "Favorite"} ${settings.model || "current model"}`);
   el.aiModelRefreshStatus.textContent = state.ai.modelListError
     ? "OpenRouter model list could not be refreshed. Showing the built-in fallback list."
-    : state.ai.modelListRefreshedAt ? `Models refreshed ${new Date(state.ai.modelListRefreshedAt).toLocaleString()}.` : "Refresh to load the OpenRouter model catalog.";
+    : state.ai.modelListRefreshedAt
+      ? `Models refreshed ${new Date(state.ai.modelListRefreshedAt).toLocaleString()}.${state.ai.modelCacheError ? " The catalog could not be cached, but remains available for this session." : ""}`
+      : "Refresh to load the OpenRouter model catalog.";
   if (document.activeElement !== el.aiTables) {
     el.aiTables.innerHTML = state.workspace.dataSources.map((source) => `<option value="${html(source.tableName)}">${html(source.tableName)} · ${source.rowCount} rows</option>`).join("");
     for (const option of el.aiTables.options) option.selected = state.ai.selectedTables.includes(option.value);

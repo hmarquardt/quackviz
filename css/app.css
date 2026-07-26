@@ -380,6 +380,22 @@ input[type="checkbox"] { width: auto; min-height: auto; }
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
+.json-model-dialog { width: min(960px, calc(100vw - 32px)); max-height: calc(100vh - 32px); }
+.json-candidate-list { display: grid; gap: 8px; margin: 12px 0; }
+.json-candidate {
+  display: grid;
+  grid-template-columns: auto minmax(140px, 0.7fr) minmax(180px, 1fr);
+  gap: 10px;
+  align-items: center;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+.json-candidate p { grid-column: 2 / -1; margin: 0; }
+@media (max-width: 720px) {
+  .json-candidate { grid-template-columns: auto minmax(0, 1fr); }
+  .json-candidate label, .json-candidate p { grid-column: 2; }
+}
 .report-outline-select {
   display: grid;
   gap: 2px;

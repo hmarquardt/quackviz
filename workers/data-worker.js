@@ -5,6 +5,13 @@ self.onmessage = async (event) => {
   }
   const base = { contract: "quackviz-worker-result", contractVersion: 1, taskId: message.taskId };
   try {
+    if (message.type === "discover-json-structure") {
+      const { discoverJsonStructure } = await import("../js/json-modeling.js");
+      self.postMessage({ ...base, status: "progress", payload: { stage: "Inspecting document structure", progress: 0.2 } });
+      const profile = discoverJsonStructure(message.payload?.document, message.payload?.limits);
+      self.postMessage({ ...base, status: "success", payload: { profile } });
+      return;
+    }
     if (message.type === "cancel") {
       self.postMessage({ ...base, status: "cancelled", payload: { message: "Cancelled." } });
       return;
